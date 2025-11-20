@@ -1,0 +1,181 @@
+{
+  "metadata": {
+    "created_at": "2025-11-16T13:17:37.054320",
+    "last_updated": "2025-11-16T13:17:37.100703",
+    "total_evaluations": 10,
+    "valid_evaluations": 10,
+    "optimization_settings": {}
+  },
+  "database": [
+    {
+      "eval_id": 1,
+      "params": {
+        "current1": 5.651185396430268,
+        "charging_number": 12,
+        "current2": 3.0931843222222026
+      },
+      "objectives": {
+        "time": 45,
+        "temp": 306.3573251172134,
+        "aging": 0.0011305509469838196
+      },
+      "scalarized": 0.4926626281454798,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.094706"
+    },
+    {
+      "eval_id": 2,
+      "params": {
+        "current1": 5.645715337546159,
+        "charging_number": 9,
+        "current2": 3.7884196102505827
+      },
+      "objectives": {
+        "time": 47,
+        "temp": 307.54446343607935,
+        "aging": 0.001131865527617318
+      },
+      "scalarized": 0.3551062074964955,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.094706"
+    },
+    {
+      "eval_id": 3,
+      "params": {
+        "current1": 5.2518075345871225,
+        "charging_number": 12,
+        "current2": 3.130275953916729
+      },
+      "objectives": {
+        "time": 46,
+        "temp": 309.8093389731458,
+        "aging": 0.0011234817710910443
+      },
+      "scalarized": 0.3804178033757397,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.094706"
+    },
+    {
+      "eval_id": 4,
+      "params": {
+        "current1": 5.6339245334327135,
+        "charging_number": 9,
+        "current2": 3.373971490981723
+      },
+      "objectives": {
+        "time": 46,
+        "temp": 307.4500012946911,
+        "aging": 0.0010150701978980069
+      },
+      "scalarized": 0.3941331645810422,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.094706"
+    },
+    {
+      "eval_id": 5,
+      "params": {
+        "current1": 5.981918422226689,
+        "charging_number": 9,
+        "current2": 3.9097973670782182
+      },
+      "objectives": {
+        "time": 50,
+        "temp": 309.3952157223034,
+        "aging": 0.00136127629663979
+      },
+      "scalarized": 0.33436323769650805,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.094706"
+    },
+    {
+      "eval_id": 6,
+      "params": {
+        "current1": 5.346786381721751,
+        "charging_number": 10,
+        "current2": 3.494675690224292
+      },
+      "objectives": {
+        "time": 46,
+        "temp": 307.6159684548982,
+        "aging": 0.0013315802017180758
+      },
+      "scalarized": 0.46435398470361666,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.100703"
+    },
+    {
+      "eval_id": 7,
+      "params": {
+        "current1": 5.206842113943749,
+        "charging_number": 12,
+        "current2": 3.886235989050348
+      },
+      "objectives": {
+        "time": 45,
+        "temp": 308.07199654805913,
+        "aging": 0.001441714932832094
+      },
+      "scalarized": 0.499224170926408,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.100703"
+    },
+    {
+      "eval_id": 8,
+      "params": {
+        "current1": 5.1032860769188835,
+        "charging_number": 12,
+        "current2": 3.3271995017539555
+      },
+      "objectives": {
+        "time": 55,
+        "temp": 306.9410152864939,
+        "aging": 0.001415760510726948
+      },
+      "scalarized": 0.4692050070079779,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.100703"
+    },
+    {
+      "eval_id": 9,
+      "params": {
+        "current1": 5.299427331975988,
+        "charging_number": 12,
+        "current2": 3.9868521961393566
+      },
+      "objectives": {
+        "time": 54,
+        "temp": 308.80286327008804,
+        "aging": 0.0014877080704593243
+      },
+      "scalarized": 0.36766401833750406,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.100703"
+    },
+    {
+      "eval_id": 10,
+      "params": {
+        "current1": 5.580003577294681,
+        "charging_number": 9,
+        "current2": 3.9532961708838705
+      },
+      "objectives": {
+        "time": 52,
+        "temp": 309.0833931137551,
+        "aging": 0.0011488514472682756
+      },
+      "scalarized": 0.3202137004518871,
+      "valid": true,
+      "source": "simulation",
+      "timestamp": "2025-11-16T13:17:37.100703"
+    }
+  ]
+}
