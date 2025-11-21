@@ -16,7 +16,7 @@ PyBaMM-based Sensitivity Computer
 import numpy as np
 import warnings
 from typing import Dict, List, Optional
-from SPM_Sensitivity import SPM_Sensitivity
+from SPM import SPM_Sensitivity
 
 
 class PyBaMMSensitivityComputer:

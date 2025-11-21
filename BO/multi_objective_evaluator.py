@@ -43,7 +43,7 @@ import numpy as np
 import asyncio
 import json
 from typing import Dict, List, Optional, Tuple
-from SPM import SPM
+from SPM import SPM_Sensitivity as SPM
 
 
 class MultiObjectiveEvaluator:
@@ -501,48 +501,38 @@ CRITICAL: Output ONLY the JSON array, no additional text."""
     ) -> Dict:
         """运行充电仿真并收集三个目标"""
         # 初始化SPM环境
-        env = SPM(init_v=3.0, init_t=298)
+        env = SPM(init_v=3.0, init_t=298, enable_sensitivities=False)
         
-        done = False
-        step_count = 0
-        constraint_violations = 0
+        # 运行两阶段充电仿真
+        result = env.run_two_stage_charging(
+            current1=current1,
+            charging_number=int(charging_number),
+            current2=current2,
+            return_sensitivities=False
+        )
         
-        # 约束限制
-        voltage_max = env.sett['constraints voltage max']  # 4.2V
-        temperature_max = env.sett['constraints temperature max']  # 309K
+        if not result['valid']:
+            return {
+                'time': self.max_steps,  # 惩罚值（步数）
+                'temp': self.temp_max + 10,  # 惩罚值
+                'aging': 1.0,  # 惩罚值
+                'valid': False,
+                'constraint_violation': 1,
+                'termination': 'invalid'
+            }
         
-        while not done and step_count < self.max_steps:
-            # 选择当前阶段电流
-            if step_count < int(charging_number):
-                current = current1
-                # CV 过渡策略（第一阶段）
-                if env.voltage >= 4.0:
-                    current = current * np.exp(-0.9 * (env.voltage - 4.0))
-            else:
-                current = current2
-                # CV 过渡策略（第二阶段）
-                if env.voltage >= 4.0:
-                    current = current * np.exp(-0.9 * (env.voltage - 4.0))
-            
-            # 执行一步
-            _, done, _ = env.step(current)
-            step_count += 1
-            
-            # 检查约束违反
-            if env.voltage > voltage_max or env.temp > temperature_max:
-                constraint_violations += 1
+        # 转换结果格式：将时间从秒转换为步数（1步 = 90秒）
+        objectives = result['objectives']
+        time_in_steps = objectives['time'] / 90.0  # 秒 -> 步数
         
-        # 收集结果
-        result = {
-            'time': step_count,
-            'temp': env.peak_temperature,
-            'aging': env.capacity_fade_scaled,
-            'valid': constraint_violations == 0,
-            'constraint_violation': constraint_violations,
-            'termination': env.info if hasattr(env, 'info') else 'completed'
+        return {
+            'time': time_in_steps,  # 步数
+            'temp': objectives['temp'],  # K
+            'aging': objectives['aging'],  # %
+            'valid': result['valid'],
+            'constraint_violation': 0,
+            'termination': 'completed'
         }
-        
-        return result
     
     def _update_bounds(self) -> None:
         """更新分位数边界（Q5/Q95）"""

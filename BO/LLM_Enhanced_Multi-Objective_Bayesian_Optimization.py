@@ -63,7 +63,7 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 from datetime import datetime
 import os
-
+from scipy.stats import norm
 # 导入自定义模块
 from multi_objective_evaluator import MultiObjectiveEvaluator
 from LLM_enhanced_surrogate_modeling import LLMEnhancedBO
@@ -651,9 +651,9 @@ async def main():
     
     # 初始化优化器
     optimizer = LLMEnhancedMultiObjectiveBO(
-        llm_api_key='sk-Sq1zyC8PLM8gafI2fpAccWpzBAzZvuNOPU6ZC9aWA6C883IK',
+        llm_api_key='sk-Evfy9FZGKZ31bpgdNsDSFfkWMopRE6EN4V4r801oRaIi8jm7',
         llm_base_url='https://api.nuwaapi.com/v1',
-        llm_model="gpt-3.5-turbo",
+        llm_model="gpt-4o",
         n_warmstart=5,
         n_iterations=30,  # 测试用，正式运行建议50+
         n_random_init=0,

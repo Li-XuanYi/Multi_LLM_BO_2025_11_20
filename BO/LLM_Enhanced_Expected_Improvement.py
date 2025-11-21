@@ -95,11 +95,21 @@ class OptimizationStateDetector:
         }
         """
         if len(self.history_fmin) < 3:
+        # ✅ 即使数据不足，也返回基本的 metrics
+            current_val = self.history_fmin[-1] if len(self.history_fmin) > 0 else 0.0
+            best_val = min(self.history_fmin) if len(self.history_fmin) > 0 else 0.0
+        
             return {
-                'state': 'exploring',
-                'confidence': 1.0,
-                'metrics': {}
+            'state': 'exploring',
+            'confidence': 1.0,
+            'metrics': {
+                'avg_improvement': 0.0,
+                'std_improvement': 0.0,
+                'avg_param_distance': 0.0,
+                'current_fmin': float(current_val),
+                'best_fmin': float(best_val)
             }
+        }
         
         fmin_array = np.array(self.history_fmin)
         

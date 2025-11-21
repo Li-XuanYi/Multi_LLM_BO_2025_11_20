@@ -43,7 +43,7 @@ from sklearn.gaussian_process.kernels import RBF, Kernel, StationaryKernelMixin,
 from openai import AsyncOpenAI
 
 # 导入新的灵敏度计算器
-from PyBaMMSensitivityComputer import PyBaMMSensitivityComputer
+from PybammSensitivity import PyBaMMSensitivityComputer
 
 
 # ============================================================
@@ -354,13 +354,28 @@ Respond with ONLY the JSON object, no additional text."""
 # 3. 耦合核函数(基于RBF + 创新耦合项)
 # ============================================================
 
+"""
+修复后的 CouplingKernel 类
+请将这个类替换到 LLM_enhanced_surrogate_modeling.py 中（大约第357-436行）
+"""
+
+import numpy as np
+from typing import Tuple
+from sklearn.gaussian_process.kernels import Kernel, StationaryKernelMixin, NormalizedKernelMixin, Hyperparameter
+
+
 class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     """
-    参数耦合核函数
+    参数耦合核函数 - 修复版
     
     k_coupling(θ, θ') = Σᵢⱼ wᵢⱼ · φ(θᵢ, θ'ᵢ, θⱼ, θ'ⱼ)
     
     其中 φ 是耦合项的相似度函数
+    
+    修复内容:
+    1. ✅ 正确实现 hyperparameter_length_scale 属性
+    2. ✅ 使用 sklearn.gaussian_process.kernels.Hyperparameter
+    3. ✅ 确保与 sklearn GP 兼容
     """
     
     def __init__(
@@ -383,7 +398,10 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     
     @property
     def hyperparameter_length_scale(self):
-        return self.length_scale
+        """
+        ✅ 修复: 返回 Hyperparameter 对象而不是 float
+        """
+        return Hyperparameter("length_scale", "numeric", self.length_scale_bounds)
     
     def __call__(self, X, Y=None, eval_gradient=False):
         """
@@ -419,9 +437,10 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                     )
         
         if eval_gradient:
-            # 简化:返回零梯度
-            # (sklearn的GP优化器可以处理无梯度的核)
-            return K, np.zeros((n_samples_X, n_samples_Y, 1))
+            # ✅ 修复: 返回正确格式的梯度
+            # 简化版：返回零梯度（sklearn 的 GP 优化器可以处理）
+            K_gradient = np.zeros((n_samples_X, n_samples_Y, 1))
+            return K, K_gradient
         
         return K
     
@@ -430,11 +449,11 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         return np.sum(self.coupling_matrix) * np.ones(X.shape[0])
     
     def is_stationary(self):
+        """是否是平稳核"""
         return True
     
     def __repr__(self):
         return f"CouplingKernel(length_scale={self.length_scale:.3f})"
-
 
 # ============================================================
 # 4. 动态耦合强度调整

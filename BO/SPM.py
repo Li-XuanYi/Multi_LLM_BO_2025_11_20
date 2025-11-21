@@ -235,21 +235,36 @@ class SPM_Sensitivity:
             # 运行仿真
             # PyBaMM 会自动处理模型构建和初始条件继承
             sol = sim.solve(starting_solution=self.sol)
-            
+
             # 提取结果
             voltage = sol["Voltage [V]"].entries[-1]
             temp = sol["X-averaged cell temperature [K]"].entries[-1]
             c = sol["R-averaged negative particle concentration [mol.m-3]"].entries[-1][-1]
             soc = cal_soc(c)
             
-            # 检查约束
+            # ==========================================
+            # 修改 _run_stage 中的约束检查逻辑
+            # ==========================================
+            
+            # 1. 提取结果
             max_temp = np.max(sol["X-averaged cell temperature [K]"].entries)
             max_voltage = np.max(sol["Voltage [V]"].entries)
             
-            valid = (
-                max_temp <= self.sett['constraints temperature max'] and
-                max_voltage <= self.sett['constraints voltage max']
-            )
+            # 2. 定义宽松的阈值 (防止数值误差导致误判)
+            # 电压允许超过一点点 (例如 0.05V)，因为 "until 4.2V" 可能会微小过冲
+            voltage_limit = self.sett['constraints voltage max'] + 0.05 
+            # 温度限制保持不变
+            temp_limit = self.sett['constraints temperature max']
+
+            # 3. 判定有效性
+            is_voltage_ok = max_voltage <= voltage_limit
+            is_temp_ok = max_temp <= temp_limit
+            
+            valid = is_voltage_ok and is_temp_ok
+
+            # 4. (可选) 调试打印，帮助你看清为什么梯度是0
+            # if not valid:
+            #     print(f"    [调试] 阶段失效: V={max_voltage:.5f}/{voltage_limit}, T={max_temp:.2f}/{temp_limit}")
             
             # 提取容量衰减
             try:
@@ -268,10 +283,9 @@ class SPM_Sensitivity:
             self.done = (soc >= 0.8)
             
             # 计算时间(步数)
-            time_steps = int(sol.t[-1] / self.sett['sample_time'])
-            
+            real_time_seconds = sol.t[-1]
             return {
-                'time': time_steps,
+                'time': real_time_seconds,  # 使用浮点数
                 'peak_temp': max_temp,
                 'aging': aging,
                 'valid': valid
@@ -425,16 +439,16 @@ if __name__ == "__main__":
     # 运行两阶段充电
     print("\n运行两阶段充电...")
     result = spm.run_two_stage_charging(
-        current1=5.0,
-        charging_number=10,
-        current2=3.0,
+        current1=4.5,
+        charging_number=18,
+        current2=3.5,
         return_sensitivities=True
     )
     
     if result['valid']:
         print("\n✓ 充电成功!")
         print(f"\n目标函数:")
-        print(f"  充电时间: {result['objectives']['time']} 步")
+        print(f"  充电时间: {result['objectives']['time']} 秒")
         print(f"  峰值温度: {result['objectives']['temp']:.2f} K")
         print(f"  容量衰减: {result['objectives']['aging']:.6f}")
         
