@@ -8,7 +8,7 @@ Example Usage Script
 import sys
 sys.path.insert(0, '/mnt/project')
 
-from multi_objective_evaluator import MultiObjectiveEvaluator
+from llmbo_core import MultiObjectiveEvaluator
 from base_optimizer import OptimizerFactory
 
 

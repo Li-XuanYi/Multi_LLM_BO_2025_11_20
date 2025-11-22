@@ -18,7 +18,7 @@ import numpy as np
 import time
 from typing import Dict, List
 from base_optimizer import BaseOptimizer, OptimizerFactory
-from BO.bayes_opt.bayesian_optimization import BayesianOptimization
+from bayes_opt import BayesianOptimization
 
 
 class TraditionalBO(BaseOptimizer):

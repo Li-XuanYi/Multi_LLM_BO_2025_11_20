@@ -22,10 +22,13 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # 导入评估器和优化器
+# ✅ 新的导入方式
 import sys
-sys.path.insert(0, '/mnt/project')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'BO'))
 
-from BO.multi_objective_evaluator import MultiObjectiveEvaluator
+
+from llmbo_core import MultiObjectiveEvaluator
 from base_optimizer import OptimizerFactory
 
 # 导入所有优化器（自动注册）
