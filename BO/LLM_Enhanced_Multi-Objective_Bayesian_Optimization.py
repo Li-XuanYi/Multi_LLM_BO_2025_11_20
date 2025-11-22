@@ -553,35 +553,35 @@ class LLMEnhancedMultiObjectiveBO:
             cumulative_best.append(best_so_far)
         
         # 子图1: 标量化值
-        axes[0, 0].plot(iterations, scalarized, 'o-', alpha=0.6, label='评估值')
-        axes[0, 0].plot(iterations, cumulative_best, 'r-', linewidth=2, label='累积最优')
-        axes[0, 0].set_xlabel('评估次数')
-        axes[0, 0].set_ylabel('标量化目标值')
-        axes[0, 0].set_title('优化收敛曲线')
+        axes[0, 0].plot(iterations, scalarized, 'o-', alpha=0.6, label='Evaluated Values')
+        axes[0, 0].plot(iterations, cumulative_best, 'r-', linewidth=2, label='Best So Far')
+        axes[0, 0].set_xlabel('Evaluation Number')
+        axes[0, 0].set_ylabel('Scalarized Objective Value')
+        axes[0, 0].set_title('Optimization Convergence')
         axes[0, 0].legend()
         axes[0, 0].grid(True, alpha=0.3)
         
         # 子图2: 充电时间
         axes[0, 1].plot(iterations, time_vals, 'o-', alpha=0.6, color='blue')
-        axes[0, 1].set_xlabel('评估次数')
-        axes[0, 1].set_ylabel('充电时间 (步数)')
-        axes[0, 1].set_title('充电时间变化')
+        axes[0, 1].set_xlabel('Evaluation Number')
+        axes[0, 1].set_ylabel('Charging Time (steps)')
+        axes[0, 1].set_title('Charging Time Evolution')
         axes[0, 1].grid(True, alpha=0.3)
         
         # 子图3: 峰值温度
         axes[1, 0].plot(iterations, temp_vals, 'o-', alpha=0.6, color='red')
-        axes[1, 0].axhline(y=309, color='r', linestyle='--', label='温度限制')
-        axes[1, 0].set_xlabel('评估次数')
-        axes[1, 0].set_ylabel('峰值温度 (K)')
-        axes[1, 0].set_title('峰值温度变化')
+        axes[1, 0].axhline(y=309, color='r', linestyle='--', label='Temperature Limit')
+        axes[1, 0].set_xlabel('Evaluation Number')
+        axes[1, 0].set_ylabel('Peak Temperature (K)')
+        axes[1, 0].set_title('Peak Temperature Evolution')
         axes[1, 0].legend()
         axes[1, 0].grid(True, alpha=0.3)
         
         # 子图4: 容量衰减
         axes[1, 1].plot(iterations, aging_vals, 'o-', alpha=0.6, color='green')
-        axes[1, 1].set_xlabel('评估次数')
-        axes[1, 1].set_ylabel('容量衰减 (%)')
-        axes[1, 1].set_title('容量衰减变化')
+        axes[1, 1].set_xlabel('Evaluation Number')
+        axes[1, 1].set_ylabel('Capacity Fade (%)')
+        axes[1, 1].set_title('Capacity Fade Evolution')
         axes[1, 1].grid(True, alpha=0.3)
         
         plt.tight_layout()
@@ -611,7 +611,7 @@ class LLMEnhancedMultiObjectiveBO:
         aging_vals = [p['objectives']['aging'] for p in pareto_front]
         
         ax.scatter(time_vals, temp_vals, aging_vals, 
-                  c='red', marker='o', s=100, label='帕累托最优解')
+                  c='red', marker='o', s=100, label='Pareto Optimal Solutions')
         
         # 所有评估点
         database = self.evaluator.export_database()
@@ -620,12 +620,12 @@ class LLMEnhancedMultiObjectiveBO:
         all_aging = [d['objectives']['aging'] for d in database]
         
         ax.scatter(all_time, all_temp, all_aging,
-                  c='gray', marker='.', s=20, alpha=0.3, label='所有评估点')
+                  c='gray', marker='.', s=20, alpha=0.3, label='All Evaluated Points')
         
-        ax.set_xlabel('充电时间 (步数)')
-        ax.set_ylabel('峰值温度 (K)')
-        ax.set_zlabel('容量衰减 (%)')
-        ax.set_title('帕累托前沿 (3D目标空间)')
+        ax.set_xlabel('Charging Time (steps)')
+        ax.set_ylabel('Peak Temperature (K)')
+        ax.set_zlabel('Capacity Fade (%)')
+        ax.set_title('Pareto Front (3D Objective Space)')
         ax.legend()
         
         if save_path:
