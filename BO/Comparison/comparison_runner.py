@@ -25,7 +25,8 @@ warnings.filterwarnings('ignore')
 # ✅ 新的导入方式
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'BO'))
+# 将 BO 目录添加到 Python 路径（从 Comparison 目录往上一级就是 BO 目录）
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 from llmbo_core import MultiObjectiveEvaluator

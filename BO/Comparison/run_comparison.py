@@ -18,8 +18,14 @@ from pathlib import Path
 import json
 from datetime import datetime
 
-# 添加项目路径
-sys.path.insert(0, '/mnt/project')
+# # 设置控制台输出编码为 UTF-8
+# if sys.platform == 'win32':
+#     import codecs
+#     sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+#     sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
+# # 添加项目路径 - 将 BO 目录添加到 Python 路径
+# sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from comparison_runner import ComparisonRunner
 from results_analyzer import ResultsAnalyzer

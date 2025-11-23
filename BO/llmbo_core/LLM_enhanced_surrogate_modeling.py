@@ -43,7 +43,10 @@ from sklearn.gaussian_process.kernels import RBF, Kernel, StationaryKernelMixin,
 from openai import AsyncOpenAI
 
 # 导入新的灵敏度计算器
-from PybammSensitivity import PyBaMMSensitivityComputer
+try:
+    from .PybammSensitivity import PyBaMMSensitivityComputer
+except ImportError:
+    from PybammSensitivity import PyBaMMSensitivityComputer
 
 
 # ============================================================
