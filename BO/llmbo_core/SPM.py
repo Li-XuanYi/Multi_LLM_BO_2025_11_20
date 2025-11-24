@@ -269,7 +269,7 @@ class SPM_Sensitivity:
             # 提取容量衰减
             try:
                 li_loss = sol["Loss of lithium inventory [%]"].entries[-1]
-                aging = li_loss * 1000.0  # 放大1000倍
+                aging = li_loss 
             except:
                 aging = 0.0
             
