@@ -370,12 +370,9 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     
     k_coupling(θ, θ') = Σᵢⱼ wᵢⱼ · φ(θᵢ, θ'ᵢ, θⱼ, θ'ⱼ)
     
-    其中 φ 是耦合项的相似度函数
-    
     修复内容:
     1. ✅ 正确实现 hyperparameter_length_scale 属性
-    2. ✅ 使用 sklearn.gaussian_process.kernels.Hyperparameter
-    3. ✅ 确保与 sklearn GP 兼容
+    2. ✅ 实现正确的梯度计算（对log(length_scale)求导）
     """
     
     def __init__(
@@ -398,9 +395,7 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     
     @property
     def hyperparameter_length_scale(self):
-        """
-        ✅ 修复: 返回 Hyperparameter 对象而不是 float
-        """
+        """返回 Hyperparameter 对象"""
         return Hyperparameter("length_scale", "numeric", self.length_scale_bounds)
     
     def __call__(self, X, Y=None, eval_gradient=False):
@@ -431,15 +426,39 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                     diff_m = X[:, m].reshape(-1, 1) - Y[:, m].reshape(1, -1)
                     diff_n = X[:, n].reshape(-1, 1) - Y[:, n].reshape(1, -1)
                     
+                    # 交叉项的绝对值
+                    abs_cross_diff = np.abs(diff_m * diff_n)
+                    
                     # 耦合项: exp(-(Δm · Δn) / l²)
-                    K += w_mn * np.exp(
-                        -np.abs(diff_m * diff_n) / (self.length_scale ** 2)
-                    )
+                    K += w_mn * np.exp(-abs_cross_diff / (self.length_scale ** 2))
         
         if eval_gradient:
-            # ✅ 修复: 返回正确格式的梯度
-            # 简化版：返回零梯度（sklearn 的 GP 优化器可以处理）
+            # ✅ 修复: 实现正确的梯度计算
+            if self.hyperparameter_length_scale.fixed:
+                return K, np.zeros((n_samples_X, n_samples_Y, 0))
+            
+            # 初始化梯度矩阵
             K_gradient = np.zeros((n_samples_X, n_samples_Y, 1))
+            
+            # 计算 ∂K/∂log(l)
+            for m in range(n_features):
+                for n in range(n_features):
+                    w_mn = self.coupling_matrix[m, n]
+                    
+                    if w_mn > 0.01:
+                        # 重新计算差异
+                        diff_m = X[:, m].reshape(-1, 1) - Y[:, m].reshape(1, -1)
+                        diff_n = X[:, n].reshape(-1, 1) - Y[:, n].reshape(1, -1)
+                        abs_cross_diff = np.abs(diff_m * diff_n)
+                        
+                        # 指数项
+                        exp_term = np.exp(-abs_cross_diff / (self.length_scale ** 2))
+                        
+                        # 梯度项: w_mn · exp(...) · (2·|Δₘ·Δₙ|/l²)
+                        grad_contribution = w_mn * exp_term * (2.0 * abs_cross_diff / (self.length_scale ** 2))
+                        
+                        K_gradient[:, :, 0] += grad_contribution
+            
             return K, K_gradient
         
         return K
@@ -454,6 +473,9 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     
     def __repr__(self):
         return f"CouplingKernel(length_scale={self.length_scale:.3f})"
+
+
+
 
 # ============================================================
 # 4. 动态耦合强度调整
@@ -609,6 +631,26 @@ class LLMEnhancedBO:
         else:
             self.llm_advisor = None
         
+        # 参数边界定义
+        self.pbounds = {
+            'current1': (3.0, 6.0),
+            'charging_number': (5, 25),
+            'current2': (1.0, 4.0)
+        }
+        
+        # ✨ 新增: 创建固定范围的Scaler（数据标准化）
+        from sklearn.preprocessing import MinMaxScaler
+        self.scaler = MinMaxScaler()
+        bounds_array = np.array([
+            [self.pbounds['current1'][0], 
+             self.pbounds['charging_number'][0], 
+             self.pbounds['current2'][0]],  # 下界: [3.0, 5, 1.0]
+            [self.pbounds['current1'][1], 
+             self.pbounds['charging_number'][1], 
+             self.pbounds['current2'][1]]   # 上界: [6.0, 25, 4.0]
+        ])
+        self.scaler.fit(bounds_array)
+        
         # 状态
         self.coupling_matrix = None
         self.composite_kernel = None
@@ -680,17 +722,20 @@ class LLMEnhancedBO:
         gamma = self.gamma_scheduler.gamma
         self.composite_kernel = base_kernel + gamma * coupling_kernel
         
-        # 准备训练数据
-        X = []
+        # ✨ 准备训练数据 - 带标准化
+        X_raw = []
         y = []
         for record in history:
             if record['valid']:
                 p = record['params']
-                X.append([p['current1'], p['charging_number'], p['current2']])
+                X_raw.append([p['current1'], p['charging_number'], p['current2']])
                 y.append(record['scalarized'])
         
-        X = np.array(X)
+        X_raw = np.array(X_raw)
         y = np.array(y)
+        
+        # ✨ 核心修改: 归一化输入到 [0, 1]
+        X_normalized = self.scaler.transform(X_raw)
         
         # 拟合GP
         self.gp = GaussianProcessRegressor(
@@ -702,9 +747,14 @@ class LLMEnhancedBO:
         )
         
         try:
-            self.gp.fit(X, y)
+            self.gp.fit(X_normalized, y)  # ✨ 使用归一化数据
             
             if self.verbose:
+                print(f"\n[代理模型已更新] 迭代 {self.iteration} | "
+                      f"训练点数: {len(X_normalized)} | "
+                      f"当前γ: {gamma:.3f}")
+                print(f"   数据范围: X_raw ∈ [{X_raw.min(axis=0)}, {X_raw.max(axis=0)}]")
+                print(f"   归一化后: X_norm ∈ [0.0, 1.0]")
                 print(f"\n[代理模型已更新] 迭代 {self.iteration} | "
                       f"训练点数: {len(X)} | "
                       f"当前γ: {gamma:.3f}")

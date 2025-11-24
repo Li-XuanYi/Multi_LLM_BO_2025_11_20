@@ -308,19 +308,35 @@ class LLMEnhancedMultiObjectiveBO:
         """
         寻找下一个采样点
         
-        使用LLM增强的EI或标准EI
+        ✨ v2.1更新:
+        1. 适配数据标准化（归一化输入给GP，反归一化输出）
+        2. 添加LLM权重的迭代衰减机制
+        3. 使用LLM增强的EI或标准EI
         """
         # 获取当前最优
         valid_history = [h for h in history if h['valid']]
         y_max = -min([h['scalarized'] for h in valid_history])  # 转为最大化
         
+        # ✨ 计算迭代进度 (用于LLM权重衰减)
+        total_evals = len(history)
+        expected_total = self.n_warmstart + self.n_random_init + self.n_iterations
+        iter_ratio = min(1.0, total_evals / expected_total)
+        
         # 定义采集函数
-        def acquisition(x):
-            """EI采集函数（可选LLM增强）"""
-            x = np.atleast_2d(x)
+        def acquisition(x_normalized):
+            """
+            EI采集函数（可选LLM增强）
             
-            # GP预测
-            mean, std = gp.predict(x, return_std=True)
+            参数:
+                x_normalized: 归一化后的参数向量 [0, 1]^3
+            
+            返回:
+                ei: 期望改进值（越大越好）
+            """
+            x_normalized = np.atleast_2d(x_normalized)
+            
+            # GP预测（输入已经是归一化的）
+            mean, std = gp.predict(x_normalized, return_std=True)
             mean = -mean  # 转回最大化
             
             # 标准EI
@@ -329,53 +345,85 @@ class LLMEnhancedMultiObjectiveBO:
                 ei = (mean - y_max) * norm.cdf(z) + std * norm.pdf(z)
                 ei[std == 0.0] = 0.0
             
-            # 如果启用LLM增强
+            # ✨ 如果启用LLM增强 + 添加衰减机制
             if self.enable_llm_ei and self.llm_ei.weight_function is not None:
-                weights = self.llm_ei.compute_llm_weights(x)
-                ei = ei * weights
+                # 反归一化到原始参数空间（用于计算LLM权重）
+                x_raw = self.llm_surrogate.scaler.inverse_transform(x_normalized)
+                
+                # 计算LLM权重
+                weights = self.llm_ei.compute_llm_weights(x_raw)
+                
+                # ✨ 动态衰减：decay从1.0（开始）→0.0（结束）
+                decay = max(0.0, 1.0 - iter_ratio)
+                
+                # 混合策略: ei * (weights ^ decay)
+                # - 开始: decay=1, weights^1 = weights (强LLM引导)
+                # - 结束: decay=0, weights^0 = 1 (纯EI)
+                weighted_ei = ei * (weights ** decay)
+                
+                if self.verbose and total_evals % 10 == 0:  # 每10次迭代打印一次
+                    print(f"  [LLM衰减] 进度={iter_ratio:.1%}, decay={decay:.2f}, "
+                          f"权重范围=[{weights.min():.3f}, {weights.max():.3f}]")
+                
+                return weighted_ei
             
             return ei
         
-        # 使用scipy优化寻找最大EI点
+        # ✨ 使用scipy优化寻找最大EI点（在归一化空间中搜索）
         from scipy.optimize import minimize
         
         best_ei = -np.inf
-        best_x = None
+        best_x_normalized = None
         
         # 多起点优化
         n_restarts = 10
         for _ in range(n_restarts):
-            x0 = np.array([
-                np.random.uniform(*self.pbounds['current1']),
-                np.random.uniform(*self.pbounds['charging_number']),
-                np.random.uniform(*self.pbounds['current2'])
-            ])
+            # 在归一化空间中随机初始化 [0, 1]^3
+            x0_normalized = np.random.uniform(0, 1, 3)
             
-            # 边界
-            bounds = [
-                self.pbounds['current1'],
-                self.pbounds['charging_number'],
-                self.pbounds['current2']
-            ]
+            # 归一化空间的边界
+            bounds_normalized = [(0.0, 1.0)] * 3
             
             # 最大化EI = 最小化-EI
             res = minimize(
                 lambda x: -acquisition(x)[0],
-                x0,
-                bounds=bounds,
+                x0_normalized,
+                bounds=bounds_normalized,
                 method='L-BFGS-B'
             )
             
             if -res.fun > best_ei:
                 best_ei = -res.fun
-                best_x = res.x
+                best_x_normalized = res.x
+        
+        # ✨ 反归一化到原始参数空间
+        best_x_raw = self.llm_surrogate.scaler.inverse_transform(
+            best_x_normalized.reshape(1, -1)
+        )[0]
         
         # 转换为参数字典
         next_point = {
-            'current1': float(best_x[0]),
-            'charging_number': int(round(best_x[1])),
-            'current2': float(best_x[2])
+            'current1': float(best_x_raw[0]),
+            'charging_number': int(round(best_x_raw[1])),  # 确保是整数
+            'current2': float(best_x_raw[2])
         }
+        
+        # 边界检查（防止数值误差导致越界）
+        next_point['current1'] = np.clip(
+            next_point['current1'], 
+            self.pbounds['current1'][0], 
+            self.pbounds['current1'][1]
+        )
+        next_point['charging_number'] = int(np.clip(
+            next_point['charging_number'],
+            self.pbounds['charging_number'][0],
+            self.pbounds['charging_number'][1]
+        ))
+        next_point['current2'] = np.clip(
+            next_point['current2'],
+            self.pbounds['current2'][0],
+            self.pbounds['current2'][1]
+        )
         
         return next_point
     
