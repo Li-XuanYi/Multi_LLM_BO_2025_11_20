@@ -43,10 +43,7 @@ import numpy as np
 import asyncio
 import json
 from typing import Dict, List, Optional, Tuple
-try:
-    from .SPM import SPM_Sensitivity as SPM
-except ImportError:
-    from SPM import SPM_Sensitivity as SPM
+from SPM import SPM_Sensitivity as SPM
 
 
 class MultiObjectiveEvaluator:
