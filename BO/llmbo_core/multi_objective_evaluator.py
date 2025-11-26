@@ -119,6 +119,11 @@ class MultiObjectiveEvaluator:
         self.detailed_logs = []
         
         if self.verbose:
+            # ✅ 梯度计算
+            from SPM import SPM_Sensitivity
+            self.spm_for_gradients = SPM_Sensitivity(init_v=3.0, init_t=298, enable_sensitivities=True)
+            self.gradient_compute_interval = 5
+            print("✅ [已启用] 梯度计算")
             print("=" * 70)
             print("多目标评价器已初始化")
             print("=" * 70)
@@ -474,6 +479,20 @@ CRITICAL: Output ONLY the JSON array, no additional text."""
             penalty = sim_result['constraint_violation'] * 0.5
             scalarized += penalty
         
+        # 6.5 计算梯度
+        gradients = None
+        if self.eval_count % 5 == 0:
+            try:
+                grad_result = self.spm_for_gradients.run_two_stage_charging(
+                    current1=current1, charging_number=int(charging_number), 
+                    current2=current2, return_sensitivities=True
+                )
+                if grad_result['valid'] and 'sensitivities' in grad_result:
+                    gradients = grad_result['sensitivities']
+            except:
+                gradients = None
+
+
         # 7. 记录详细日志
         log_entry = {
             'eval_id': self.eval_count,
@@ -483,7 +502,8 @@ CRITICAL: Output ONLY the JSON array, no additional text."""
             'scalarized': scalarized,
             'valid': sim_result['valid'],
             'violations': sim_result['constraint_violation'],
-            'termination': sim_result['termination']
+            'termination': sim_result['termination'],
+            'gradients': gradients
         }
         self.detailed_logs.append(log_entry)
         
