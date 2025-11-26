@@ -1,23 +1,26 @@
 """
-Traditional Bayesian Optimization Wrapper
-传统贝叶斯优化算法包装器
+Traditional Bayesian Optimization Wrapper - FIXED VERSION
+传统贝叶斯优化算法包装器（修复版）
 
-使用bayes_opt库实现标准BO，作为LLMBO的baseline对比
-
-关键特性：
-- 标准高斯过程代理模型
-- Expected Improvement采集函数
-- 无LLM增强
-- 公平对比设置
+修复内容：
+1. ✅ 统一导入路径
+2. ✅ 确保注册代码在模块级别执行
+3. ✅ 移除 if __name__ 条件
 
 Author: Research Team
-Date: 2025-01-19
+Date: 2025-01-19 (修复版)
 """
 
 import numpy as np
 import time
 from typing import Dict, List
-from base_optimizer import BaseOptimizer, OptimizerFactory
+
+# ✅ 修复1: 使用统一的导入路径
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from Comparison.base_optimizer import BaseOptimizer, OptimizerFactory
 from bayes_opt import BayesianOptimization
 
 
@@ -222,12 +225,18 @@ class TraditionalBO(BaseOptimizer):
         print("\n" + "=" * 70)
 
 
-# 注册到工厂
+# ============================================================
+# ✅ 修复2: 确保注册代码在模块级别执行（无条件）
+# ============================================================
+
+print(f"[traditional_bo.py] 正在注册 TraditionalBO...")
 OptimizerFactory.register('BO', TraditionalBO)
+print(f"[traditional_bo.py] ✓ TraditionalBO 已注册")
+print(f"[traditional_bo.py] 当前注册表: {OptimizerFactory.available_optimizers()}")
 
 
 # ============================================================
-# 测试代码
+# 测试代码（仅在直接运行时执行）
 # ============================================================
 
 if __name__ == "__main__":
@@ -235,9 +244,9 @@ if __name__ == "__main__":
     print("测试 Traditional BO Wrapper")
     print("=" * 70)
     
-    # 注意：这里只是结构测试，不运行实际优化
     print("\n✓ TraditionalBO 类已创建")
     print("✓ 已注册到 OptimizerFactory")
+    print(f"✓ 可用优化器: {OptimizerFactory.available_optimizers()}")
     print("\n方法:")
     print("  - optimize(n_iterations, n_random_init)")
     print("  - get_history()")

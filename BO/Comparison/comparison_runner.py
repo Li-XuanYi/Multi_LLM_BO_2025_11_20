@@ -1,15 +1,14 @@
 """
-Algorithm Comparison Runner
-算法对比运行框架
+Algorithm Comparison Runner - FIXED VERSION
+算法对比运行框架 (修复版)
 
-执行公平对比实验：
-- 运行15次重复实验
-- 固定随机种子保证可重复性
-- 标准化评估次数
-- 收集详细统计数据
+修复内容:
+1. ✅ 修复导入路径错误
+2. ✅ 添加依赖检查和诊断
+3. ✅ 确保OptimizerFactory注册正确
 
 Author: Research Team
-Date: 2025-01-19
+Date: 2025-01-19 (修复版)
 """
 
 import numpy as np
@@ -21,22 +20,144 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
-# 导入评估器和优化器
-# ✅ 新的导入方式
+# ============================================================
+# 修复1: 正确的导入路径和诊断
+# ============================================================
+
 import sys
 from pathlib import Path
-# 将BO_Multi_11_12目录添加到Python路径（从Comparison往上两级）
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-# 现在可以导入BO包
-from BO.llmbo_core import MultiObjectiveEvaluator
-from BO.Comparison.base_optimizer import OptimizerFactory
+# 添加项目路径
+project_root = Path(__file__).parent.parent  # 假设在 BO/Comparison/ 目录下
+sys.path.insert(0, str(project_root))
 
-# 导入所有优化器（自动注册）
-from BO.Comparison.traditional_bo import TraditionalBO
-from ga_optimizer import GeneticAlgorithm
-from pso_optimizer import ParticleSwarmOptimization
+print("\n" + "=" * 80)
+print("检查依赖和导入...")
+print("=" * 80)
 
+# 检查关键依赖
+dependencies_ok = True
+
+# 检查 DEAP (用于 GA)
+try:
+    import deap
+    print("✓ DEAP 已安装")
+    DEAP_AVAILABLE = True
+except ImportError:
+    print("✗ DEAP 未安装 - GA 算法不可用")
+    print("  安装: pip install deap")
+    DEAP_AVAILABLE = False
+    dependencies_ok = False
+
+# 检查 pyswarms (用于 PSO)
+try:
+    import pyswarms
+    print("✓ pyswarms 已安装")
+    PYSWARMS_AVAILABLE = True
+except ImportError:
+    print("✗ pyswarms 未安装 - PSO 算法不可用")
+    print("  安装: pip install pyswarms")
+    PYSWARMS_AVAILABLE = False
+    dependencies_ok = False
+
+# 检查 bayes_opt (用于 BO)
+try:
+    import bayes_opt
+    print("✓ bayes-opt 已安装")
+    BAYESOPT_AVAILABLE = True
+except ImportError:
+    print("✗ bayes-opt 未安装 - BO 算法不可用")
+    print("  安装: pip install bayesian-optimization")
+    BAYESOPT_AVAILABLE = False
+    dependencies_ok = False
+
+print("=" * 80)
+
+# 导入核心模块
+try:
+    # 方式1: 如果在 BO/Comparison/ 目录下运行
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from llmbo_core import MultiObjectiveEvaluator
+    from Comparison.base_optimizer import OptimizerFactory
+    print("✓ 使用相对导入路径 (方式1)")
+except ImportError:
+    try:
+        # 方式2: 如果在项目根目录运行
+        from BO.llmbo_core import MultiObjectiveEvaluator
+        from BO.Comparison.base_optimizer import OptimizerFactory
+        print("✓ 使用绝对导入路径 (方式2)")
+    except ImportError:
+        print("✗ 无法导入核心模块")
+        print("  请确保在正确的目录运行此脚本")
+        print("  或调整 PYTHONPATH")
+        sys.exit(1)
+
+# ============================================================
+# 修复2: 条件导入优化器（带详细错误信息）
+# ============================================================
+
+print("\n导入优化器...")
+
+# Traditional BO
+try:
+    try:
+        from Comparison.traditional_bo import TraditionalBO
+    except ImportError:
+        from BO.Comparison.traditional_bo import TraditionalBO
+    print("✓ Traditional BO 已导入")
+except ImportError as e:
+    print(f"✗ Traditional BO 导入失败: {e}")
+
+# GA
+if DEAP_AVAILABLE:
+    try:
+        try:
+            from Comparison.ga_optimizer import GeneticAlgorithm
+        except ImportError:
+            from BO.Comparison.ga_optimizer import GeneticAlgorithm
+        print("✓ GA 已导入")
+    except ImportError as e:
+        print(f"✗ GA 导入失败: {e}")
+else:
+    print("⊘ GA 跳过（DEAP 未安装）")
+
+# PSO
+if PYSWARMS_AVAILABLE:
+    try:
+        try:
+            from Comparison.pso_optimizer import ParticleSwarmOptimization
+        except ImportError:
+            from BO.Comparison.pso_optimizer import ParticleSwarmOptimization
+        print("✓ PSO 已导入")
+    except ImportError as e:
+        print(f"✗ PSO 导入失败: {e}")
+else:
+    print("⊘ PSO 跳过（pyswarms 未安装）")
+
+# ============================================================
+# 修复3: 验证 OptimizerFactory 注册
+# ============================================================
+
+print("\n检查 OptimizerFactory 注册...")
+available_optimizers = OptimizerFactory.available_optimizers()
+
+if len(available_optimizers) == 0:
+    print("✗ OptimizerFactory 注册表为空！")
+    print("\n可能的原因:")
+    print("1. 优化器模块导入失败")
+    print("2. 优化器文件中的注册代码未执行")
+    print("3. 缺少必要的依赖库")
+    print("\n请检查上述错误信息")
+    sys.exit(1)
+else:
+    print(f"✓ 已注册的优化器: {available_optimizers}")
+
+print("=" * 80)
+
+
+# ============================================================
+# 原有的 ComparisonRunner 类（保持不变）
+# ============================================================
 
 class ComparisonRunner:
     """
@@ -67,6 +188,17 @@ class ComparisonRunner:
             save_dir: 结果保存目录
             verbose: 是否打印详细信息
         """
+        # 验证算法可用性
+        available = OptimizerFactory.available_optimizers()
+        invalid_algorithms = [alg for alg in algorithms if alg not in available]
+        
+        if invalid_algorithms:
+            raise ValueError(
+                f"以下算法不可用: {invalid_algorithms}\n"
+                f"可用算法: {available}\n"
+                f"请检查依赖库是否安装"
+            )
+        
         self.algorithms = algorithms
         self.n_trials = n_trials
         self.n_iterations = n_iterations
@@ -163,6 +295,8 @@ class ComparisonRunner:
             
             except Exception as e:
                 print(f"  [FAIL] Trial {trial + 1} failed: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
         
         # 存储结果
@@ -335,28 +469,45 @@ class ComparisonRunner:
 def main():
     """Run complete comparison experiments"""
     
+    # 获取可用算法
+    available = OptimizerFactory.available_optimizers()
+    
+    if not available:
+        print("\n✗ 没有可用的优化器！")
+        print("请安装所需的依赖库")
+        return
+    
     # Configuration
-    algorithms = ['BO', 'GA', 'PSO']  # Can add 'LLMBO'
-    n_trials = 15
-    n_iterations = 50
-    n_random_init = 10
+    algorithms = available  # 使用所有可用的算法
+    n_trials = 3  # 快速测试：3次，完整实验：15次
+    n_iterations = 20  # 快速测试：20次，完整实验：50次
+    n_random_init = 5  # 快速测试：5个，完整实验：10个
+    
+    print(f"\n将运行以下算法: {algorithms}")
+    print(f"配置: {n_trials} trials × {n_iterations} iterations")
     
     # Create runner
-    runner = ComparisonRunner(
-        algorithms=algorithms,
-        n_trials=n_trials,
-        n_iterations=n_iterations,
-        n_random_init=n_random_init,
-        random_seed=42,
-        save_dir='./comparison_results',
-        verbose=True
-    )
-    
-    # Run all comparisons
-    runner.run_all_comparisons()
-    
-    # Print summary
-    runner.print_summary()
+    try:
+        runner = ComparisonRunner(
+            algorithms=algorithms,
+            n_trials=n_trials,
+            n_iterations=n_iterations,
+            n_random_init=n_random_init,
+            random_seed=42,
+            save_dir='./comparison_results',
+            verbose=True
+        )
+        
+        # Run all comparisons
+        runner.run_all_comparisons()
+        
+        # Print summary
+        runner.print_summary()
+        
+    except Exception as e:
+        print(f"\n✗ 运行失败: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
