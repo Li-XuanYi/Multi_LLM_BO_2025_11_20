@@ -43,7 +43,10 @@ from sklearn.gaussian_process.kernels import RBF, Kernel, StationaryKernelMixin,
 from openai import AsyncOpenAI
 
 # 导入新的灵敏度计算器
-from PybammSensitivity import PyBaMMSensitivityComputer
+try:
+    from .PybammSensitivity import PyBaMMSensitivityComputer
+except ImportError:
+    from PybammSensitivity import PyBaMMSensitivityComputer
 
 
 # ============================================================
@@ -756,7 +759,7 @@ class LLMEnhancedBO:
                 print(f"   数据范围: X_raw ∈ [{X_raw.min(axis=0)}, {X_raw.max(axis=0)}]")
                 print(f"   归一化后: X_norm ∈ [0.0, 1.0]")
                 print(f"\n[代理模型已更新] 迭代 {self.iteration} | "
-                      f"训练点数: {len(X)} | "
+                      f"训练点数: {len(X_normalized)} | "
                       f"当前γ: {gamma:.3f}")
         
         except Exception as e:

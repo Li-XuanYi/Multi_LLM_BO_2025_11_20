@@ -25,14 +25,15 @@ warnings.filterwarnings('ignore')
 # ✅ 新的导入方式
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'BO'))
+# 将BO_Multi_11_12目录添加到Python路径（从Comparison往上两级）
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-
-from llmbo_core import MultiObjectiveEvaluator
-from base_optimizer import OptimizerFactory
+# 现在可以导入BO包
+from BO.llmbo_core import MultiObjectiveEvaluator
+from BO.Comparison.base_optimizer import OptimizerFactory
 
 # 导入所有优化器（自动注册）
-from traditional_bo import TraditionalBO
+from BO.Comparison.traditional_bo import TraditionalBO
 from ga_optimizer import GeneticAlgorithm
 from pso_optimizer import ParticleSwarmOptimization
 
@@ -96,14 +97,14 @@ class ComparisonRunner:
         
         if self.verbose:
             print("\n" + "=" * 80)
-            print("Algorithm Comparison Runner 已初始化")
+            print("Algorithm Comparison Runner Initialized")
             print("=" * 80)
-            print(f"对比算法: {algorithms}")
-            print(f"重复次数: {n_trials} trials")
-            print(f"迭代次数: {n_iterations} iterations per trial")
-            print(f"随机初始化: {n_random_init} points")
-            print(f"基础随机种子: {random_seed}")
-            print(f"结果保存至: {self.save_dir}")
+            print(f"Algorithms: {algorithms}")
+            print(f"Trials: {n_trials} trials")
+            print(f"Iterations: {n_iterations} iterations per trial")
+            print(f"Random initialization: {n_random_init} points")
+            print(f"Base random seed: {random_seed}")
+            print(f"Results saved to: {self.save_dir}")
             print("=" * 80)
     
     def run_all_comparisons(self):
@@ -113,7 +114,7 @@ class ComparisonRunner:
         for algorithm in self.algorithms:
             if self.verbose:
                 print(f"\n{'=' * 80}")
-                print(f"开始运行算法: {algorithm}")
+                print(f"Running algorithm: {algorithm}")
                 print(f"{'=' * 80}")
             
             self.run_algorithm_trials(algorithm)
@@ -122,8 +123,8 @@ class ComparisonRunner:
         
         if self.verbose:
             print(f"\n{'=' * 80}")
-            print(f"所有对比实验完成！")
-            print(f"总运行时间: {total_time:.1f} 秒")
+            print(f"All comparison experiments completed!")
+            print(f"Total runtime: {total_time:.1f} seconds")
             print(f"{'=' * 80}")
         
         # 保存结果
@@ -156,12 +157,12 @@ class ComparisonRunner:
                 algorithm_results.append(result)
                 
                 if self.verbose:
-                    print(f"  ✓ Trial {trial + 1} 完成")
-                    print(f"    最优值: {result['best_solution']['scalarized']:.4f}")
-                    print(f"    运行时间: {result['elapsed_time']:.1f}s")
+                    print(f"  [OK] Trial {trial + 1} completed")
+                    print(f"    Best value: {result['best_solution']['scalarized']:.4f}")
+                    print(f"    Runtime: {result['elapsed_time']:.1f}s")
             
             except Exception as e:
-                print(f"  ✗ Trial {trial + 1} 失败: {e}")
+                print(f"  [FAIL] Trial {trial + 1} failed: {e}")
                 continue
         
         # 存储结果
@@ -232,16 +233,16 @@ class ComparisonRunner:
         with open(detailed_file, 'w', encoding='utf-8') as f:
             json.dump(serializable_results, f, indent=2, ensure_ascii=False)
         
-        print(f"\n详细结果已保存: {detailed_file}")
+        print(f"\nDetailed results saved: {detailed_file}")
         
-        # 保存统计摘要
+        # Save statistical summary
         summary_file = self.save_dir / f"summary_{timestamp}.json"
         summary = self.compute_summary_statistics()
         
         with open(summary_file, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, ensure_ascii=False)
         
-        print(f"统计摘要已保存: {summary_file}")
+        print(f"Statistical summary saved: {summary_file}")
     
     def compute_summary_statistics(self) -> Dict:
         """计算统计摘要"""
@@ -295,11 +296,11 @@ class ComparisonRunner:
         return summary
     
     def print_summary(self):
-        """打印统计摘要"""
+        """Print statistical summary"""
         summary = self.compute_summary_statistics()
         
         print("\n" + "=" * 80)
-        print("统计摘要（基于 {} 次运行）".format(self.n_trials))
+        print("Statistical Summary (based on {} runs)".format(self.n_trials))
         print("=" * 80)
         
         for alg in self.algorithms:
@@ -308,21 +309,21 @@ class ComparisonRunner:
             
             stats = summary[alg]
             
-            print(f"\n【{alg}】")
-            print(f"  标量化目标值:")
+            print(f"\n[{alg}]")
+            print(f"  Scalarized objective:")
             print(f"    Best:   {stats['scalarized']['best']:.4f}")
             print(f"    Mean:   {stats['scalarized']['mean']:.4f}")
             print(f"    Std:    {stats['scalarized']['std']:.4f}")
             print(f"    Median: {stats['scalarized']['median']:.4f}")
             
-            print(f"  运行时间:")
+            print(f"  Runtime:")
             print(f"    Mean:   {stats['runtime']['mean']:.1f}s")
             print(f"    Std:    {stats['runtime']['std']:.1f}s")
             
-            print(f"  目标值（平均）:")
-            print(f"    Time:   {stats['objectives']['time']['mean']:.1f} ± {stats['objectives']['time']['std']:.1f}")
-            print(f"    Temp:   {stats['objectives']['temp']['mean']:.2f} ± {stats['objectives']['temp']['std']:.2f}")
-            print(f"    Aging:  {stats['objectives']['aging']['mean']:.6f} ± {stats['objectives']['aging']['std']:.6f}")
+            print(f"  Objectives (average):")
+            print(f"    Time:   {stats['objectives']['time']['mean']:.1f} +/- {stats['objectives']['time']['std']:.1f}")
+            print(f"    Temp:   {stats['objectives']['temp']['mean']:.2f} +/- {stats['objectives']['temp']['std']:.2f}")
+            print(f"    Aging:  {stats['objectives']['aging']['mean']:.6f} +/- {stats['objectives']['aging']['std']:.6f}")
         
         print("\n" + "=" * 80)
 
@@ -332,15 +333,15 @@ class ComparisonRunner:
 # ============================================================
 
 def main():
-    """运行完整的对比实验"""
+    """Run complete comparison experiments"""
     
-    # 配置
-    algorithms = ['BO', 'GA', 'PSO']  # 可以添加'LLMBO'
+    # Configuration
+    algorithms = ['BO', 'GA', 'PSO']  # Can add 'LLMBO'
     n_trials = 15
     n_iterations = 50
     n_random_init = 10
     
-    # 创建运行器
+    # Create runner
     runner = ComparisonRunner(
         algorithms=algorithms,
         n_trials=n_trials,
@@ -351,10 +352,10 @@ def main():
         verbose=True
     )
     
-    # 运行所有对比
+    # Run all comparisons
     runner.run_all_comparisons()
     
-    # 打印摘要
+    # Print summary
     runner.print_summary()
 
 

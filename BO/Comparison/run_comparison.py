@@ -12,8 +12,16 @@ Author: Research Team
 Date: 2025-01-19
 """
 
+# -*- coding: utf-8 -*-
 import sys
 import os
+
+# 设置stdout编码为utf-8
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 from pathlib import Path
 import json
 from datetime import datetime
@@ -26,25 +34,25 @@ from results_analyzer import ResultsAnalyzer
 
 
 def run_comparison_experiments():
-    """运行对比实验"""
+    """Run comparison experiments"""
     print("\n" + "=" * 80)
-    print("🚀 开始运行算法对比实验")
+    print("[START] Running Algorithm Comparison Experiments")
     print("=" * 80)
     
-    # 配置参数
-    algorithms = ['BO', 'GA', 'PSO']  # 可以添加'LLMBO'
-    n_trials = 3  # 快速测试用3次，正式实验用15次
-    n_iterations = 20  # 快速测试用20次，正式实验用50次
-    n_random_init = 5  # 快速测试用5个，正式实验用10个
+    # Configuration
+    algorithms = ['BO', 'GA', 'PSO']  # Can add 'LLMBO'
+    n_trials = 3  # Quick test: 3, Full experiment: 15
+    n_iterations = 20  # Quick test: 20, Full experiment: 50
+    n_random_init = 5  # Quick test: 5, Full experiment: 10
     
-    print(f"\n配置:")
-    print(f"  算法: {algorithms}")
-    print(f"  重复次数: {n_trials}")
-    print(f"  迭代次数: {n_iterations}")
-    print(f"  随机初始化: {n_random_init}")
+    print(f"\nConfiguration:")
+    print(f"  Algorithms: {algorithms}")
+    print(f"  Trials: {n_trials}")
+    print(f"  Iterations: {n_iterations}")
+    print(f"  Random init: {n_random_init}")
     print()
     
-    # 创建运行器
+    # Create runner
     runner = ComparisonRunner(
         algorithms=algorithms,
         n_trials=n_trials,
@@ -55,65 +63,65 @@ def run_comparison_experiments():
         verbose=True
     )
     
-    # 运行对比
+    # Run comparisons
     try:
         runner.run_all_comparisons()
         runner.print_summary()
         
-        # 获取最新的结果文件
+        # Get latest result file
         results_dir = Path('./comparison_results')
         result_files = sorted(results_dir.glob('detailed_results_*.json'))
         
         if result_files:
             latest_result = result_files[-1]
-            print(f"\n✓ 实验完成！结果文件: {latest_result}")
+            print(f"\n[OK] Experiment completed! Result file: {latest_result}")
             return str(latest_result)
         else:
-            print("\n✗ 未找到结果文件")
+            print("\n[FAIL] No result files found")
             return None
             
     except Exception as e:
-        print(f"\n✗ 实验失败: {e}")
+        print(f"\n[FAIL] Experiment failed: {e}")
         import traceback
         traceback.print_exc()
         return None
 
 
 def analyze_results(results_file: str):
-    """分析结果并生成图表"""
+    """Analyze results and generate figures"""
     print("\n" + "=" * 80)
-    print("📊 开始生成可视化图表")
+    print("[CHARTS] Generating Visualization Figures")
     print("=" * 80)
     
     try:
-        # 创建分析器
+        # Create analyzer
         analyzer = ResultsAnalyzer(
             results_file=results_file,
             save_dir='./figures'
         )
         
-        # 生成所有图表
+        # Generate all figures
         analyzer.generate_all_figures()
         
-        print("\n✓ 图表生成完成！")
+        print("\n[OK] Figures generated successfully!")
         
     except Exception as e:
-        print(f"\n✗ 图表生成失败: {e}")
+        print(f"\n[FAIL] Figure generation failed: {e}")
         import traceback
         traceback.print_exc()
 
 
 def generate_report(results_file: str):
-    """生成文本报告"""
+    """Generate text report"""
     print("\n" + "=" * 80)
-    print("📝 生成结果报告")
+    print("[REPORT] Generating Results Report")
     print("=" * 80)
     
-    # 加载结果
+    # Load results
     with open(results_file, 'r', encoding='utf-8') as f:
         all_results = json.load(f)
     
-    # 计算统计量
+    # Compute statistics
     report_lines = []
     report_lines.append("=" * 80)
     report_lines.append("ALGORITHM COMPARISON REPORT")
@@ -165,41 +173,41 @@ def generate_report(results_file: str):
     with open(report_file, 'w', encoding='utf-8') as f:
         f.write('\n'.join(report_lines))
     
-    # 打印报告
+    # Print report
     print('\n'.join(report_lines))
-    print(f"\n✓ 报告已保存: {report_file}")
+    print(f"\n[OK] Report saved: {report_file}")
 
 
 def main():
-    """主流程"""
+    """Main workflow"""
     print("\n" + "=" * 80)
-    print("🔬 Battery Charging Optimization - Algorithm Comparison")
+    print("[Battery Charging Optimization - Algorithm Comparison]")
     print("=" * 80)
     
-    # 步骤1: 运行对比实验
-    print("\n步骤 1/3: 运行对比实验...")
+    # Step 1: Run comparison experiments
+    print("\nStep 1/3: Running comparison experiments...")
     results_file = run_comparison_experiments()
     
     if results_file is None:
-        print("\n❌ 实验失败，终止流程")
+        print("\n[X] Experiment failed, terminating workflow")
         return
     
-    # 步骤2: 生成图表
-    print("\n步骤 2/3: 生成可视化图表...")
+    # Step 2: Generate charts
+    print("\nStep 2/3: Generating visualization charts...")
     analyze_results(results_file)
     
-    # 步骤3: 生成报告
-    print("\n步骤 3/3: 生成结果报告...")
+    # Step 3: Generate report
+    print("\nStep 3/3: Generating results report...")
     generate_report(results_file)
     
-    # 完成
+    # Complete
     print("\n" + "=" * 80)
-    print("✅ 所有任务完成！")
+    print("[OK] All tasks completed!")
     print("=" * 80)
-    print(f"\n结果位置:")
-    print(f"  - 数据: ./comparison_results/")
-    print(f"  - 图表: ./figures/")
-    print(f"  - 报告: ./comparison_results/report.txt")
+    print(f"\nResults location:")
+    print(f"  - Data: ./comparison_results/")
+    print(f"  - Figures: ./figures/")
+    print(f"  - Report: ./comparison_results/report.txt")
     print("\n" + "=" * 80)
 
 
