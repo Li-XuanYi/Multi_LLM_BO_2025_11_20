@@ -93,8 +93,8 @@ class CouplingMatrixEstimator:
             if not record['valid']:
                 continue
             
-            # 如果记录中已有梯度信息,直接使用
-            if 'gradients' in record:
+            # ⚡ 关键修复: 如果记录中已有梯度信息且不为None,直接使用
+            if 'gradients' in record and record['gradients'] is not None:
                 gradients_list.append(record['gradients'])
             else:
                 # 否则,只能使用默认矩阵
@@ -662,12 +662,12 @@ class LLMEnhancedBO:
         
         if self.verbose:
             print("\n" + "=" * 70)
-            print("LLM-Enhanced Bayesian Optimization v2.0 已初始化")
+            print("LLM-Enhanced Bayesian Optimization v2.0 Initialized")
             print("=" * 70)
-            print(f"✨ 梯度计算: PyBaMM自动微分 (精确+快速)")
-            print(f"   LLM顾问: {'启用' if self.enable_llm_advisor else '禁用'}")
-            print(f"   初始γ: {initial_gamma}")
-            print(f"   耦合矩阵更新间隔: 每{update_coupling_every}次迭代")
+            print(f"[NEW] Gradient computation: PyBaMM Auto-Diff (Accurate+Fast)")
+            print(f"   LLM Advisor: {'Enabled' if self.enable_llm_advisor else 'Disabled'}")
+            print(f"   Initial gamma: {initial_gamma}")
+            print(f"   Coupling matrix update interval: every {update_coupling_every} iterations")
             print("=" * 70)
     
     async def fit_surrogate_async(self, history: List[Dict]) -> GaussianProcessRegressor:

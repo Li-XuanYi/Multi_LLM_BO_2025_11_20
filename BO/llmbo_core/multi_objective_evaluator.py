@@ -119,11 +119,11 @@ class MultiObjectiveEvaluator:
         self.detailed_logs = []
         
         if self.verbose:
-            # ✅ 梯度计算
+            # [Gradient Computation]
             from SPM import SPM_Sensitivity
             self.spm_for_gradients = SPM_Sensitivity(init_v=3.0, init_t=298, enable_sensitivities=True)
             self.gradient_compute_interval = 5
-            print("✅ [已启用] 梯度计算")
+            print("[OK] Gradient computation enabled")
             print("=" * 70)
             print("多目标评价器已初始化")
             print("=" * 70)
@@ -202,7 +202,7 @@ class MultiObjectiveEvaluator:
                 )
                 
                 if self.verbose:
-                    print(f"✅ LLM 成功生成 {len(strategies)} 个策略")
+                    print(f"[OK] LLM successfully generated {len(strategies)} strategies")
                 
             except Exception as e:
                 if self.verbose:
@@ -261,7 +261,7 @@ class MultiObjectiveEvaluator:
                 continue
         
         if self.verbose:
-            print(f"\n✅ Warm Start 完成！成功评估 {len(results)}/{len(strategies)} 个策略")
+            print(f"\n[OK] Warm Start completed! Successfully evaluated {len(results)}/{len(strategies)} strategies")
             print("=" * 70)
         
         return results
@@ -753,7 +753,7 @@ if __name__ == "__main__":
     # 测试基本功能
     evaluator = MultiObjectiveEvaluator(verbose=True)
     
-    print("\n✅ 基本功能测试通过")
+    print("\n[OK] Basic functionality test passed")
     print(f"   evaluate() 方法: 存在")
     print(f"   initialize_with_llm_warmstart() 方法: 存在 ✨")
     print(f"   get_best_solution() 方法: 存在")
