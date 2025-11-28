@@ -1,0 +1,19 @@
+﻿__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+
+# Logs
+*.log
+report.log
+
+# Results
+results/temp_*
+results/raw_*
+!results/optimization_history.png
+!results/pareto_front.png
+
+# IDE
+.vscode/
+.idea/
