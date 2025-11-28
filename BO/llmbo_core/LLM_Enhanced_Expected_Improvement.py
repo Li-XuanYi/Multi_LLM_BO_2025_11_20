@@ -436,7 +436,7 @@ class SamplingParameterComputer:
         if 'small' in strategy.lower() or 'focused' in strategy.lower():
             scale_factor = 0.5
         elif 'large' in strategy.lower() or 'exploration' in strategy.lower():
-            scale_factor = 1.5
+            scale_factor = 2.0
         else:  # moderate
             scale_factor = 1.0
         
@@ -713,33 +713,53 @@ class LLMEnhancedEI:
         # 估计参数敏感度
         sensitivity_info = self.sensitivity_estimator.estimate_sensitivity(history)
         
-        # LLM提供策略建议
-        if self.enable_llm_advisor and self.iteration % self.update_strategy_every == 1:
-            try:
-                strategy = await self.llm_advisor.get_sampling_strategy(
-                    state_info,
-                    history,
-                    sensitivity_info
-                )
-            except Exception as e:
-                warnings.warn(f"LLM顾问失败: {e}")
-                strategy = {
-                    'mu_strategy': 'near current best',
-                    'sigma_strategy': 'moderate balanced',
-                    'sigma_scaling': 'moderate',
-                    'reasoning': 'Default strategy'
-                }
-        else:
-            # 使用上次的策略或默认策略
-            if hasattr(self, 'last_strategy'):
-                strategy = self.last_strategy
+        # ✅ 新增: 停滞检测和强制探索
+        forced_exploration = False
+        if state_info['state'] in ['oscillating', 'local_optimum'] and state_info['confidence'] >= 0.9:
+            # 检查最近5次的改善情况
+            recent_fmin = [h['scalarized'] for h in history if h['valid']][-5:]
+            if len(recent_fmin) >= 5:
+                improvement = (recent_fmin[0] - np.min(recent_fmin)) / (abs(recent_fmin[0]) + 1e-10)
+                
+                if improvement < 0.01:  # 改善率 < 1%
+                    forced_exploration = True
+                    strategy = {
+                        'mu_strategy': 'centroid of recently explored region',  # 远离当前最优
+                        'sigma_strategy': 'large exploration',                 # 大范围搜索
+                        'sigma_scaling': 'larger',
+                        'reasoning': 'FORCED: Escaping local optimum via aggressive exploration'
+                    }
+                    if self.verbose:
+                        print("  [WARNING] Stagnation detected: Forced exploration mode enabled")
+        
+        # LLM提供策略建议（只有在非强制探索时才调用）
+        if not forced_exploration:
+            if self.enable_llm_advisor and self.iteration % self.update_strategy_every == 1:
+                try:
+                    strategy = await self.llm_advisor.get_sampling_strategy(
+                        state_info,
+                        history,
+                        sensitivity_info
+                    )
+                except Exception as e:
+                    warnings.warn(f"LLM顾问失败: {e}")
+                    strategy = {
+                        'mu_strategy': 'near current best',
+                        'sigma_strategy': 'moderate balanced',
+                        'sigma_scaling': 'moderate',
+                        'reasoning': 'Default strategy'
+                    }
             else:
-                strategy = {
-                    'mu_strategy': 'near current best',
-                    'sigma_strategy': 'moderate balanced',
-                    'sigma_scaling': 'moderate',
-                    'reasoning': 'Default strategy'
-                }
+                # 使用上次的策略或默认策略
+                if hasattr(self, 'last_strategy'):
+                    strategy = self.last_strategy
+                else:
+                    strategy = {
+                        'mu_strategy': 'near current best',
+                        'sigma_strategy': 'moderate balanced',
+                        'sigma_scaling': 'moderate',
+                        'reasoning': 'Default strategy'
+                    }
         
         self.last_strategy = strategy
         

@@ -64,15 +64,10 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import os
 from scipy.stats import norm
-# 导入自定义模块（支持包导入和直接运行）
-try:
-    from .multi_objective_evaluator import MultiObjectiveEvaluator
-    from .LLM_enhanced_surrogate_modeling import LLMEnhancedBO
-    from .LLM_Enhanced_Expected_Improvement import LLMEnhancedEI
-except ImportError:
-    from multi_objective_evaluator import MultiObjectiveEvaluator
-    from LLM_enhanced_surrogate_modeling import LLMEnhancedBO
-    from LLM_Enhanced_Expected_Improvement import LLMEnhancedEI
+# 导入自定义模块（统一使用绝对导入）
+from multi_objective_evaluator import MultiObjectiveEvaluator
+from LLM_enhanced_surrogate_modeling import LLMEnhancedBO
+from LLM_Enhanced_Expected_Improvement import LLMEnhancedEI
 
 # 导入bayes_opt
 from bayes_opt.bayesian_optimization import BayesianOptimization

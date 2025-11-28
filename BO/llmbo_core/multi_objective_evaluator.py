@@ -481,7 +481,7 @@ CRITICAL: Output ONLY the JSON array, no additional text."""
         
         # 6.5 计算梯度
         gradients = None
-        if self.eval_count % 5 == 0:
+        if self.eval_count % 3 == 0:
             try:
                 grad_result = self.spm_for_gradients.run_two_stage_charging(
                     current1=current1, charging_number=int(charging_number), 

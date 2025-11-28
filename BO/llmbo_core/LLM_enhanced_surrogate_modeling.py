@@ -81,31 +81,30 @@ class CouplingMatrixEstimator:
         返回:
             W: (3, 3) 耦合权重矩阵
         """
-        if len(history) < 3:
+        if len(history) < 5:
             if self.verbose:
-                print("[耦合估计] 数据不足,使用默认耦合矩阵")
+                print("[Coupling Matrix] Insufficient data, using default coupling matrix")
             return self._get_default_coupling_matrix()
         
         # 提取有效评估的梯度信息
         gradients_list = []
         
+        # ✅ 修复后代码:
         for record in history:
             if not record['valid']:
                 continue
             
-            # ⚡ 关键修复: 如果记录中已有梯度信息且不为None,直接使用
+            # 只收集有梯度的记录
             if 'gradients' in record and record['gradients'] is not None:
                 gradients_list.append(record['gradients'])
-            else:
-                # 否则,只能使用默认矩阵
-                if len(gradients_list) < 5:
-                    continue
-                else:
-                    break
+            # 继续遍历,不提前退出
+        
+        if self.verbose:
+            print(f"[Coupling Matrix] Successfully collected {len(gradients_list)} gradient records")
         
         if len(gradients_list) < 3:
             if self.verbose:
-                print("[耦合估计] 梯度信息不足,使用默认耦合矩阵")
+                print("[Coupling Matrix] Insufficient gradient data, using default coupling matrix")
             return self._get_default_coupling_matrix()
         
         # 方法: 计算梯度的平均外积
@@ -142,8 +141,8 @@ class CouplingMatrixEstimator:
             W = self._get_default_coupling_matrix()
         
         if self.verbose:
-            print("\n[耦合矩阵估计完成]")
-            print("耦合权重矩阵 W:")
+            print("\n[Coupling Matrix] Estimation completed")
+            print("Coupling weight matrix W:")
             print(f"         I1      t1      I2")
             for i, name in enumerate(['I1', 't1', 'I2']):
                 print(f"  {name}  {W[i,0]:.3f}  {W[i,1]:.3f}  {W[i,2]:.3f}")
@@ -546,6 +545,30 @@ class CouplingStrengthScheduler:
             improvement_rate = (prev_fmin - current_fmin) / abs(prev_fmin)
         else:
             improvement_rate = 0.0
+
+            # ✅ 新增: 停滞检测
+        window_size = 5
+        if len(self.history_fmin) >= window_size:
+            recent_window = self.history_fmin[-window_size:]
+            recent_best = np.min(recent_window)
+            
+            # 如果当前值与最近最优值几乎相同 (< 1% 改善)
+            if abs(current_fmin - recent_best) / (abs(recent_best) + 1e-10) < 0.01:
+                # 停滞惩罚: 强制降低 gamma
+                if improvement_rate >= 0:  # 只有在没有改善时才惩罚
+                    improvement_rate = -0.2
+                    if self.verbose:
+                        print(f"  [γ 惩罚] 连续停滞, 强制改善率 = -0.20")
+        
+        # 更新 γ
+        old_gamma = self.gamma
+        self.gamma = self.gamma * (1.0 + self.adjustment_rate * improvement_rate)
+        self.gamma = np.clip(self.gamma, self.gamma_min, self.gamma_max)
+        
+        # 记录
+        self.history_fmin.append(current_fmin)
+        self.history_gamma.append(self.gamma)
+    
         
         # 更新 γ(论文公式)
         old_gamma = self.gamma
