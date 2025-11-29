@@ -28,6 +28,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from Comparison.base_optimizer import BaseOptimizer, OptimizerFactory
 
+# 导入LegacyEvaluator（使用旧版SPM）
+try:
+    from Comparison.traditional_bo import LegacyEvaluator
+except ImportError:
+    from BO.Comparison.traditional_bo import LegacyEvaluator
+
 # 检查 DEAP 是否可用
 try:
     from deap import base, creator, tools, algorithms
@@ -55,7 +61,8 @@ if DEAP_AVAILABLE:
             population_size: int = 10,  # ✅ 修复1: 从50降至10
             crossover_prob: float = 0.8,
             mutation_prob: float = 0.2,
-            tournament_size: int = 3
+            tournament_size: int = 3,
+            use_legacy_spm: bool = True  # ✅ 新增：使用旧版SPM确保公平对比
         ):
             """
             初始化GA优化器
@@ -69,7 +76,20 @@ if DEAP_AVAILABLE:
                 crossover_prob: 交叉概率
                 mutation_prob: 变异概率
                 tournament_size: 锦标赛大小
+                use_legacy_spm: 是否使用旧版SPM（推荐True）
             """
+            # ✅ 如果使用旧版SPM，替换evaluator
+            if use_legacy_spm:
+                original_weights = getattr(evaluator, 'weights', {
+                    'time': 0.4, 'temp': 0.35, 'aging': 0.25
+                })
+                evaluator = LegacyEvaluator(
+                    weights=original_weights,
+                    verbose=False  # GA已有进度输出，关闭evaluator的verbose
+                )
+                if verbose:
+                    print("[GA] 使用旧版SPM（v2.1，无自动微分）确保公平对比")
+            
             super().__init__(evaluator, pbounds, random_state, verbose)
             
             self.population_size = population_size

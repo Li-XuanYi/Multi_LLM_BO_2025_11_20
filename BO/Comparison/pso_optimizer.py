@@ -27,6 +27,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from Comparison.base_optimizer import BaseOptimizer, OptimizerFactory
 
+# 导入LegacyEvaluator（使用旧版SPM）
+try:
+    from Comparison.traditional_bo import LegacyEvaluator
+except ImportError:
+    from BO.Comparison.traditional_bo import LegacyEvaluator
+
 # 检查 pyswarms 是否可用
 try:
     from pyswarms.single import GlobalBestPSO
@@ -54,7 +60,8 @@ if PYSWARMS_AVAILABLE:
             n_particles: int = 10,  # ✅ 修复1: 从30降至10
             w: float = 0.7,  # 惯性权重
             c1: float = 1.5,  # 认知系数
-            c2: float = 1.5   # 社会系数
+            c2: float = 1.5,  # 社会系数
+            use_legacy_spm: bool = True  # ✅ 新增：使用旧版SPM确保公平对比
         ):
             """
             初始化PSO优化器
@@ -68,7 +75,20 @@ if PYSWARMS_AVAILABLE:
                 w: 惯性权重
                 c1: 认知系数（个体最优影响）
                 c2: 社会系数（全局最优影响）
+                use_legacy_spm: 是否使用旧版SPM（推荐True）
             """
+            # ✅ 如果使用旧版SPM，替换evaluator
+            if use_legacy_spm:
+                original_weights = getattr(evaluator, 'weights', {
+                    'time': 0.4, 'temp': 0.35, 'aging': 0.25
+                })
+                evaluator = LegacyEvaluator(
+                    weights=original_weights,
+                    verbose=False  # PSO已有进度输出，关闭evaluator的verbose
+                )
+                if verbose:
+                    print("[PSO] 使用旧版SPM（v2.1，无自动微分）确保公平对比")
+            
             super().__init__(evaluator, pbounds, random_state, verbose)
             
             self.n_particles = n_particles
@@ -86,8 +106,9 @@ if PYSWARMS_AVAILABLE:
                 np.array([pbounds[k][1] for k in self.param_names])   # upper
             )
             
-            # 速度限制（搜索空间的20%）
-            self.velocity_clamp = 0.2 * (self.bounds[1] - self.bounds[0])
+            # 速度限制（搜索空间的20%，使用最大值）
+            velocity_range = 0.2 * (self.bounds[1] - self.bounds[0])
+            self.velocity_clamp = (0, np.max(velocity_range))  # pyswarms需要(min, max)元组
             
             if self.verbose:
                 print("\n" + "=" * 70)
@@ -181,7 +202,7 @@ if PYSWARMS_AVAILABLE:
                 dimensions=len(self.param_names),
                 options=options,
                 bounds=self.bounds,
-                velocity_clamp=tuple(self.velocity_clamp.tolist())
+                velocity_clamp=self.velocity_clamp  # 已经是(min, max)元组
             )
             
             # 创建评估函数的包装器（用于记录历史）

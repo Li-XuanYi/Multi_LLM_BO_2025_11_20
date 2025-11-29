@@ -6,6 +6,7 @@ Traditional Bayesian Optimization Wrapper - FIXED VERSION
 1. ✅ 统一导入路径
 2. ✅ 确保注册代码在模块级别执行
 3. ✅ 移除 if __name__ 条件
+4. ✅ 使用旧版SPM（无自动微分优化）
 
 Author: Research Team
 Date: 2025-01-19 (修复版)
@@ -23,12 +24,254 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from Comparison.base_optimizer import BaseOptimizer, OptimizerFactory
 from bayes_opt import BayesianOptimization
 
+# 导入旧版SPM（没有自动微分优化）
+try:
+    from llmbo_core.SPM import SPM_Sensitivity as SPM_Legacy
+except ImportError:
+    try:
+        from BO.llmbo_core.SPM import SPM_Sensitivity as SPM_Legacy
+    except ImportError:
+        print("警告: 无法导入旧版SPM，将使用新版SPM_v3")
+        try:
+            from llmbo_core.SPM_v3 import SPM_Sensitivity as SPM_Legacy
+        except ImportError:
+            from BO.llmbo_core.SPM_v3 import SPM_Sensitivity as SPM_Legacy
+
+
+class LegacyEvaluator:
+    """
+    使用旧版SPM的评估器（用于传统BO对比）
+    简化版评估器，只提供基本的评估功能，不使用新的自动微分优化
+    """
+    
+    def __init__(
+        self,
+        weights: Dict[str, float] = None,
+        temp_max: float = 309.0,
+        max_steps: int = 300,
+        verbose: bool = False
+    ):
+        """
+        初始化旧版评估器
+        
+        参数：
+            weights: 各目标权重
+            temp_max: 温度约束上限[K]
+            max_steps: 单次充电最大步数限制
+            verbose: 是否打印详细日志
+        """
+        self.weights = weights or {
+            'time': 0.4,
+            'temp': 0.35,
+            'aging': 0.25
+        }
+        self.temp_max = temp_max
+        self.max_steps = max_steps
+        self.verbose = verbose
+        
+        # 简化的历史记录
+        self.history = {
+            'time': [],
+            'temp': [],
+            'aging': [],
+            'valid': [],
+            'params': [],
+            'scalarized': []
+        }
+        
+        self.eval_count = 0
+        
+        # 临时固定边界（用于归一化）
+        self.bounds = {
+            'time': {'best': 10, 'worst': 150},
+            'temp': {'best': 298.0, 'worst': temp_max},
+            'aging': {'best': 0.0, 'worst': 0.5}
+        }
+        
+        if self.verbose:
+            print(f"[Legacy Evaluator] 初始化完成，使用旧版SPM（无自动微分）")
+    
+    def evaluate(
+        self,
+        current1: float,
+        charging_number: int,
+        current2: float
+    ) -> float:
+        """
+        评估充电策略（返回标量化值）
+        
+        参数：
+            current1: 第一阶段电流[A]
+            charging_number: 第一阶段步数
+            current2: 第二阶段电流[A]
+        
+        返回：
+            scalarized: 标量化目标值（越小越好）
+        """
+        self.eval_count += 1
+        
+        # 运行充电仿真（使用旧版SPM）
+        result = self._run_charging_simulation(current1, charging_number, current2)
+        
+        if not result['valid']:
+            # 约束违反：返回惩罚值
+            scalarized = 1e6
+        else:
+            # 归一化
+            normalized = self._normalize_objectives(result['objectives'])
+            
+            # 标量化（增强切比雪夫）
+            scalarized = self._scalarize(normalized)
+        
+        # 记录历史
+        params = {
+            'current1': current1,
+            'charging_number': charging_number,
+            'current2': current2
+        }
+        
+        self.history['time'].append(result['objectives']['time'])
+        self.history['temp'].append(result['objectives']['temp'])
+        self.history['aging'].append(result['objectives']['aging'])
+        self.history['valid'].append(result['valid'])
+        self.history['params'].append(params)
+        self.history['scalarized'].append(scalarized)
+        
+        return scalarized
+    
+    def _run_charging_simulation(
+        self,
+        current1: float,
+        charging_number: int,
+        current2: float
+    ) -> Dict:
+        """
+        运行充电仿真（使用旧版SPM）
+        """
+        try:
+            # 创建旧版SPM实例
+            env = SPM_Legacy(init_v=3.0, init_t=298, enable_sensitivities=False)
+            
+            # 运行两阶段充电
+            result = env.run_two_stage_charging(
+                current1=current1,
+                charging_number=int(charging_number),
+                current2=current2,
+                return_sensitivities=False  # 不计算梯度
+            )
+            
+            return result
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"[警告] 仿真失败: {e}")
+            
+            return {
+                'objectives': {'time': 1e6, 'temp': 1e6, 'aging': 1e6},
+                'valid': False
+            }
+    
+    def _normalize_objectives(self, objectives: Dict[str, float]) -> Dict[str, float]:
+        """归一化目标值到[0,1]"""
+        normalized = {}
+        
+        for obj_name in ['time', 'temp', 'aging']:
+            value = objectives[obj_name]
+            best = self.bounds[obj_name]['best']
+            worst = self.bounds[obj_name]['worst']
+            
+            # 线性归一化
+            normalized[obj_name] = (value - best) / (worst - best)
+            
+            # 裁剪到[0,1]
+            normalized[obj_name] = np.clip(normalized[obj_name], 0.0, 1.0)
+        
+        return normalized
+    
+    def _scalarize(self, normalized: Dict[str, float]) -> float:
+        """增强切比雪夫标量化"""
+        weighted_objectives = []
+        
+        for obj_name in ['time', 'temp', 'aging']:
+            weight = self.weights[obj_name]
+            value = normalized[obj_name]
+            weighted_objectives.append(weight * value)
+        
+        # 切比雪夫：max + 0.05*sum
+        tcheby = np.max(weighted_objectives)
+        augment = 0.05 * np.sum(weighted_objectives)
+        
+        return tcheby + augment
+    
+    def get_best_solution(self) -> Dict:
+        """获取最优解"""
+        if not self.history['scalarized']:
+            return None
+        
+        best_idx = np.argmin(self.history['scalarized'])
+        
+        return {
+            'params': self.history['params'][best_idx],
+            'objectives': {
+                'time': self.history['time'][best_idx],
+                'temp': self.history['temp'][best_idx],
+                'aging': self.history['aging'][best_idx]
+            },
+            'scalarized': self.history['scalarized'][best_idx],
+            'valid': self.history['valid'][best_idx]
+        }
+    
+    def export_database(self) -> List[Dict]:
+        """导出评估历史"""
+        database = []
+        
+        for i in range(len(self.history['scalarized'])):
+            database.append({
+                'eval_id': i,
+                'params': self.history['params'][i],
+                'objectives': {
+                    'time': self.history['time'][i],
+                    'temp': self.history['temp'][i],
+                    'aging': self.history['aging'][i]
+                },
+                'scalarized': self.history['scalarized'][i],
+                'valid': self.history['valid'][i]
+            })
+        
+        return database
+    
+    def get_statistics(self) -> Dict:
+        """获取统计信息"""
+        if not self.history['scalarized']:
+            return {}
+        
+        valid_indices = [i for i, v in enumerate(self.history['valid']) if v]
+        
+        if not valid_indices:
+            return {
+                'n_evaluations': self.eval_count,
+                'n_valid': 0,
+                'n_invalid': self.eval_count
+            }
+        
+        valid_scalarized = [self.history['scalarized'][i] for i in valid_indices]
+        
+        return {
+            'n_evaluations': self.eval_count,
+            'n_valid': len(valid_indices),
+            'n_invalid': self.eval_count - len(valid_indices),
+            'best_scalarized': float(np.min(valid_scalarized)),
+            'mean_scalarized': float(np.mean(valid_scalarized)),
+            'std_scalarized': float(np.std(valid_scalarized))
+        }
+
 
 class TraditionalBO(BaseOptimizer):
     """
     传统贝叶斯优化包装器
     
     使用bayes_opt库实现，无任何LLM增强
+    使用旧版SPM（无自动微分优化）以确保公平对比
     """
     
     def __init__(
@@ -37,18 +280,32 @@ class TraditionalBO(BaseOptimizer):
         pbounds: Dict[str, tuple],
         random_state: int = 42,
         verbose: bool = True,
-        acquisition_kappa: float = 2.576
+        acquisition_kappa: float = 2.576,
+        use_legacy_spm: bool = True  # 新增：是否使用旧版SPM
     ):
         """
         初始化Traditional BO
         
         参数：
-            evaluator: MultiObjectiveEvaluator实例
+            evaluator: MultiObjectiveEvaluator实例（如果use_legacy_spm=False）
             pbounds: 参数边界
             random_state: 随机种子
             verbose: 是否打印详细信息
             acquisition_kappa: UCB参数（如果使用UCB采集函数）
+            use_legacy_spm: 是否使用旧版SPM（推荐True，确保公平对比）
         """
+        # 如果使用旧版SPM，替换evaluator
+        if use_legacy_spm:
+            original_weights = getattr(evaluator, 'weights', {
+                'time': 0.4, 'temp': 0.35, 'aging': 0.25
+            })
+            evaluator = LegacyEvaluator(
+                weights=original_weights,
+                verbose=verbose
+            )
+            if verbose:
+                print("[Traditional BO] 使用旧版SPM（无自动微分优化）")
+        
         super().__init__(evaluator, pbounds, random_state, verbose)
         
         self.acquisition_kappa = acquisition_kappa
@@ -70,6 +327,7 @@ class TraditionalBO(BaseOptimizer):
             print(f"参数边界: {pbounds}")
             print(f"随机种子: {random_state}")
             print(f"采集函数: Expected Improvement")
+            print(f"SPM版本: {'Legacy (v2.1)' if use_legacy_spm else 'v3.0 (Auto-Diff)'}")
             print("=" * 70)
     
     def optimize(
@@ -218,8 +476,9 @@ class TraditionalBO(BaseOptimizer):
         
         print(f"\n【统计信息】")
         stats = results['statistics']
-        print(f"  总评估次数: {stats['total_evaluations']}")
-        print(f"  有效评估: {stats['valid_evaluations']}")
+        print(f"  总评估次数: {stats.get('n_evaluations', 'N/A')}")
+        print(f"  有效评估: {stats.get('n_valid', 'N/A')}")
+        print(f"  无效评估: {stats.get('n_invalid', 'N/A')}")
         print(f"  运行时间: {results['elapsed_time']:.1f} 秒")
         
         print("\n" + "=" * 70)
