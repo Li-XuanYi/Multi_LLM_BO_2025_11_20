@@ -44,9 +44,9 @@ import asyncio
 import json
 from typing import Dict, List, Optional, Tuple
 try:
-    from .SPM import SPM_Sensitivity as SPM
+    from .SPM_v3 import SPM_Sensitivity as SPM
 except ImportError:
-    from SPM import SPM_Sensitivity as SPM
+    from SPM_v3 import SPM_Sensitivity as SPM
 
 
 class MultiObjectiveEvaluator:
@@ -120,10 +120,16 @@ class MultiObjectiveEvaluator:
         
         if self.verbose:
             # [Gradient Computation]
-            from SPM import SPM_Sensitivity
-            self.spm_for_gradients = SPM_Sensitivity(init_v=3.0, init_t=298, enable_sensitivities=True)
+            from SPM_v3 import SPM_Sensitivity
+            self.spm_for_gradients = SPM_Sensitivity(
+                init_v=3.0, 
+                init_t=298, 
+                mode='finite_difference',
+                enable_penalty_gradients=True,
+                penalty_scale=10.0
+            )
             self.gradient_compute_interval = 5
-            print("[OK] Gradient computation enabled")
+            print("[OK] Gradient computation enabled with penalty gradients (v3.0)")
             print("=" * 70)
             print("多目标评价器已初始化")
             print("=" * 70)
@@ -523,8 +529,8 @@ CRITICAL: Output ONLY the JSON array, no additional text."""
         current2: float
     ) -> Dict:
         """运行充电仿真并收集三个目标"""
-        # 初始化SPM环境
-        env = SPM(init_v=3.0, init_t=298, enable_sensitivities=False)
+        # 初始化SPM环境（v3.0 - 不需要灵敏度）
+        env = SPM(init_v=3.0, init_t=298)
         
         # 运行两阶段充电仿真
         result = env.run_two_stage_charging(

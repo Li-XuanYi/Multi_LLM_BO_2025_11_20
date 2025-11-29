@@ -44,9 +44,9 @@ from openai import AsyncOpenAI
 
 # 导入新的灵敏度计算器
 try:
-    from .PybammSensitivity import PyBaMMSensitivityComputer
+    from .PybammSensitivity_v3 import PyBaMMSensitivityComputer
 except ImportError:
-    from PybammSensitivity import PyBaMMSensitivityComputer
+    from PybammSensitivity_v3 import PyBaMMSensitivityComputer
 
 
 # ============================================================
