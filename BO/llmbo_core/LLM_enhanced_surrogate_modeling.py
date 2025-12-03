@@ -147,6 +147,16 @@ class CouplingMatrixEstimator:
             for i, name in enumerate(['I1', 't1', 'I2']):
                 print(f"  {name}  {W[i,0]:.3f}  {W[i,1]:.3f}  {W[i,2]:.3f}")
         
+        # ✅ 如果有LLM顾问，融合LLM知识
+        if hasattr(self, 'llm_advisor') and self.llm_advisor is not None:
+            try:
+                import asyncio
+                W = asyncio.run(
+                    self.llm_advisor.generate_coupling_matrix_from_llm(history, W)
+                )
+            except:
+                pass  # LLM失败则使用数据驱动矩阵
+        
         return W
     
     def _get_default_coupling_matrix(self) -> np.ndarray:
@@ -350,6 +360,60 @@ Respond with ONLY the JSON object, no additional text."""
                 'concerns': [],
                 'suggestions': 'LLM validation unavailable'
             }
+    
+    async def generate_coupling_matrix_from_llm(
+        self,
+        history: List[Dict],
+        data_driven_matrix: np.ndarray
+    ) -> np.ndarray:
+        """LLM生成耦合矩阵"""
+        if len(history) < 5:
+            return data_driven_matrix
+        
+        valid_history = [h for h in history if h['valid']]
+        
+        # 构建统计摘要
+        stats_text = f"""Data-driven matrix:
+         I1    t1    I2
+I1   {data_driven_matrix[0,0]:.3f} {data_driven_matrix[0,1]:.3f} {data_driven_matrix[0,2]:.3f}
+t1   {data_driven_matrix[1,0]:.3f} {data_driven_matrix[1,1]:.3f} {data_driven_matrix[1,2]:.3f}
+I2   {data_driven_matrix[2,0]:.3f} {data_driven_matrix[2,1]:.3f} {data_driven_matrix[2,2]:.3f}
+
+Based on electrochemical physics and the data above, generate an improved symmetric coupling matrix.
+Expected strong I1-t1 coupling (0.6-0.9), moderate I1-I2 coupling (0.3-0.6), weak-moderate t1-I2 coupling (0.2-0.5).
+
+Output JSON format:
+{{"matrix": [[1.0, I1-t1, I1-I2], [t1-I1, 1.0, t1-I2], [I2-I1, I2-t1, 1.0]], "confidence": 0.0-1.0}}"""
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are an electrochemistry expert."},
+                    {"role": "user", "content": stats_text}
+                ],
+                temperature=0.3,
+                max_tokens=300,
+                response_format={"type": "json_object"}
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+            llm_matrix = np.array(result['matrix'])
+            confidence = result.get('confidence', 0.5)
+            
+            # 融合
+            fused = confidence * llm_matrix + (1 - confidence) * data_driven_matrix
+            fused = (fused + fused.T) / 2
+            np.fill_diagonal(fused, 1.0)
+            
+            if self.verbose:
+                print(f"\n[LLM耦合矩阵] 置信度={confidence:.2f}")
+            
+            return fused
+            
+        except Exception as e:
+            warnings.warn(f"LLM生成失败: {e}")
+            return data_driven_matrix
 
 
 # ============================================================
@@ -401,70 +465,61 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
         return Hyperparameter("length_scale", "numeric", self.length_scale_bounds)
     
     def __call__(self, X, Y=None, eval_gradient=False):
-        """
-        计算耦合核矩阵
-        
-        K[i,j] = Σₘₙ wₘₙ · exp(-(Xᵢₘ-Yⱼₘ)·(Xᵢₙ-Yⱼₙ) / l²)
-        """
+        """计算耦合核矩阵（修复版：保证正定性）"""
         X = np.atleast_2d(X)
         if Y is None:
             Y = X
         else:
             Y = np.atleast_2d(Y)
         
-        n_samples_X = X.shape[0]
+        n_samples_X, n_features = X.shape
         n_samples_Y = Y.shape[0]
-        n_features = X.shape[1]
         
         K = np.zeros((n_samples_X, n_samples_Y))
         
-        # 计算耦合核
+        # 关键改进：使用平方欧氏距离替代绝对值
         for m in range(n_features):
             for n in range(n_features):
                 w_mn = self.coupling_matrix[m, n]
                 
-                if w_mn > 0.01:  # 忽略非常弱的耦合
-                    # 差异向量
+                if w_mn > 0.01:
                     diff_m = X[:, m].reshape(-1, 1) - Y[:, m].reshape(1, -1)
                     diff_n = X[:, n].reshape(-1, 1) - Y[:, n].reshape(1, -1)
                     
-                    # 交叉项的绝对值
-                    abs_cross_diff = np.abs(diff_m * diff_n)
+                    # ✅ 修复：使用平方距离
+                    sq_dist_m = diff_m ** 2
+                    sq_dist_n = diff_n ** 2
                     
-                    # 耦合项: exp(-(Δm · Δn) / l²)
-                    K += w_mn * np.exp(-abs_cross_diff / (self.length_scale ** 2))
+                    # ✅ 修复：正定核函数
+                    K += w_mn * np.exp(-(sq_dist_m + sq_dist_n) / (2 * self.length_scale ** 2))
         
         if eval_gradient:
-            # ✅ 修复: 实现正确的梯度计算
             if self.hyperparameter_length_scale.fixed:
-                return K, np.zeros((n_samples_X, n_samples_Y, 0))
+                return K, np.empty((n_samples_X, n_samples_Y, 0))
             
-            # 初始化梯度矩阵
             K_gradient = np.zeros((n_samples_X, n_samples_Y, 1))
             
-            # 计算 ∂K/∂log(l)
             for m in range(n_features):
                 for n in range(n_features):
                     w_mn = self.coupling_matrix[m, n]
                     
                     if w_mn > 0.01:
-                        # 重新计算差异
                         diff_m = X[:, m].reshape(-1, 1) - Y[:, m].reshape(1, -1)
                         diff_n = X[:, n].reshape(-1, 1) - Y[:, n].reshape(1, -1)
-                        abs_cross_diff = np.abs(diff_m * diff_n)
                         
-                        # 指数项
-                        exp_term = np.exp(-abs_cross_diff / (self.length_scale ** 2))
+                        sq_dist_m = diff_m ** 2
+                        sq_dist_n = diff_n ** 2
+                        total_sq_dist = sq_dist_m + sq_dist_n
                         
-                        # 梯度项: w_mn · exp(...) · (2·|Δₘ·Δₙ|/l²)
-                        grad_contribution = w_mn * exp_term * (2.0 * abs_cross_diff / (self.length_scale ** 2))
+                        exp_term = np.exp(-total_sq_dist / (2 * self.length_scale ** 2))
                         
-                        K_gradient[:, :, 0] += grad_contribution
+                        # ✅ 修复：正确的梯度
+                        K_gradient[:, :, 0] += w_mn * exp_term * (total_sq_dist / (self.length_scale ** 2))
             
             return K, K_gradient
         
         return K
-    
+
     def diag(self, X):
         """核矩阵的对角线"""
         return np.sum(self.coupling_matrix) * np.ones(X.shape[0])
@@ -546,35 +601,34 @@ class CouplingStrengthScheduler:
         else:
             improvement_rate = 0.0
 
-            # ✅ 新增: 停滞检测
+        # 停滞检测
         window_size = 5
+        is_stagnant = False
+
         if len(self.history_fmin) >= window_size:
             recent_window = self.history_fmin[-window_size:]
             recent_best = np.min(recent_window)
             
-            # 如果当前值与最近最优值几乎相同 (< 1% 改善)
             if abs(current_fmin - recent_best) / (abs(recent_best) + 1e-10) < 0.01:
-                # 停滞惩罚: 强制降低 gamma
-                if improvement_rate >= 0:  # 只有在没有改善时才惩罚
-                    improvement_rate = -0.2
-                    if self.verbose:
-                        print(f"  [γ 惩罚] 连续停滞, 强制改善率 = -0.20")
-        
-        # 更新 γ
+                is_stagnant = True
+                if self.verbose:
+                    print(f"  [γ警告] 检测到停滞")
+
+        # 多策略更新
         old_gamma = self.gamma
-        self.gamma = self.gamma * (1.0 + self.adjustment_rate * improvement_rate)
-        self.gamma = np.clip(self.gamma, self.gamma_min, self.gamma_max)
-        
-        # 记录
-        self.history_fmin.append(current_fmin)
-        self.history_gamma.append(self.gamma)
-    
-        
-        # 更新 γ(论文公式)
-        old_gamma = self.gamma
-        self.gamma = self.gamma * (1.0 + self.adjustment_rate * improvement_rate)
-        
-        # 限制在合理范围
+
+        if is_stagnant and improvement_rate >= -0.01:
+            self.gamma *= 0.8  # 停滞惩罚
+            update_reason = "停滞惩罚"
+        elif improvement_rate > 0.05:
+            self.gamma *= (1.0 + 0.1 * improvement_rate)
+            self.gamma = min(self.gamma, self.gamma_max)
+            update_reason = "改善奖励"
+        else:
+            self.gamma *= 0.95  # 指数衰减
+            update_reason = "指数衰减"
+
+        # 限制范围
         self.gamma = np.clip(self.gamma, self.gamma_min, self.gamma_max)
         
         # 记录
@@ -584,7 +638,7 @@ class CouplingStrengthScheduler:
         if self.verbose:
             direction = "↑" if self.gamma > old_gamma else "↓" if self.gamma < old_gamma else "→"
             print(f"[γ调整] f_min: {prev_fmin:.4f} → {current_fmin:.4f} | "
-                  f"改善率: {improvement_rate:+.2%} | "
+                  f"改善率: {improvement_rate:+.2%} | {update_reason} | "
                   f"γ: {old_gamma:.3f} → {self.gamma:.3f} {direction}")
         
         return self.gamma
@@ -656,6 +710,10 @@ class LLMEnhancedBO:
             )
         else:
             self.llm_advisor = None
+        
+        # 传递LLM顾问给耦合矩阵估计器
+        if self.enable_llm_advisor and self.llm_advisor:
+            self.coupling_estimator.llm_advisor = self.llm_advisor
         
         # 参数边界定义
         self.pbounds = {

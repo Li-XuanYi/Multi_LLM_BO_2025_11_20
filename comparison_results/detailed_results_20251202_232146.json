@@ -19,4 +19,10 @@
           "aging": 0.0
         },
         "scalarized": 0.2062609800474055,
-        "valid": 
+        "valid": true
+      },
+      "evaluations": 20,
+      "time_taken": 123.456789
+    }
+  ]
+}

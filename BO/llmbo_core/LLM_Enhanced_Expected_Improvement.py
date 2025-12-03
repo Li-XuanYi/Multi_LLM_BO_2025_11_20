@@ -331,8 +331,8 @@ class SamplingParameterComputer:
     def __init__(
         self,
         pbounds: Dict[str, Tuple[float, float]],
-        sigma_min: float = 0.1,
-        sigma_max: float = 2.0,
+        sigma_min: float = 0.05,  # 从0.1改为0.05
+        sigma_max: float = 3.0,   # 从2.0改为3.0
         verbose: bool = True
     ):
         """
