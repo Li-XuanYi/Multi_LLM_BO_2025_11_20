@@ -1,0 +1,22 @@
+{
+  "BO": [
+    {
+      "best_solution": {
+        "eval_id": 13,
+        "params": {
+          "current1": 3.443427518991781,
+          "charging_number": 6,
+          "current2": 3.587282385650194
+        },
+        "objectives": {
+          "time": 47.79628231181224,
+          "temp": 305.4942096047301,
+          "aging": 1.1068860124098165
+        },
+        "normalized": {
+          "time": 0.0,
+          "temp": 0.5612543674759334,
+          "aging": 0.0
+        },
+        "scalarized": 0.2062609800474055,
+        "valid": 

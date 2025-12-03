@@ -1,11 +1,12 @@
 """
-Genetic Algorithm (GA) Optimizer Wrapper - MEMORY OPTIMIZED VERSION
-遗传算法优化器包装器（内存优化版）
+Genetic Algorithm (GA) Optimizer Wrapper - UNIFIED KERNEL VERSION
+遗传算法优化器包装器（统一物理内核版）
 
-修复内容：
+修改内容：
 1. ✅ 种群大小从50降至10（公平评估预算）
 2. ✅ 添加内存释放机制
 3. ✅ 显示实时评估进度
+4. ✅ 使用MultiObjectiveEvaluator（SPM_v3）统一物理内核
 
 评估次数对比（n_iterations=20）：
 - 修复前：50 + 20×40 = 850次
@@ -13,7 +14,7 @@ Genetic Algorithm (GA) Optimizer Wrapper - MEMORY OPTIMIZED VERSION
 - BO基准：5 + 20 = 25次
 
 Author: Research Team
-Date: 2025-11-26 (内存优化版)
+Date: 2025-12-02 (统一物理内核版)
 """
 
 import numpy as np
@@ -28,11 +29,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from Comparison.base_optimizer import BaseOptimizer, OptimizerFactory
 
-# 导入LegacyEvaluator（使用旧版SPM）
+# 导入ScalarOnlyEvaluatorWrapper（统一使用SPM_v3）
 try:
-    from Comparison.traditional_bo import LegacyEvaluator
+    from Comparison.traditional_bo import ScalarOnlyEvaluatorWrapper
+    from llmbo_core.multi_objective_evaluator import MultiObjectiveEvaluator
 except ImportError:
-    from BO.Comparison.traditional_bo import LegacyEvaluator
+    from BO.Comparison.traditional_bo import ScalarOnlyEvaluatorWrapper
+    from BO.llmbo_core.multi_objective_evaluator import MultiObjectiveEvaluator
 
 # 检查 DEAP 是否可用
 try:
@@ -47,28 +50,27 @@ except ImportError:
 if DEAP_AVAILABLE:
     class GeneticAlgorithm(BaseOptimizer):
         """
-        遗传算法优化器包装器（内存优化版）
+        遗传算法优化器包装器（统一物理内核版）
         
-        使用DEAP库实现标准GA，优化评估预算和内存使用
+        使用DEAP库实现标准GA，统一使用SPM_v3物理内核
         """
         
         def __init__(
             self,
-            evaluator,
+            evaluator: MultiObjectiveEvaluator,
             pbounds: Dict[str, tuple],
             random_state: int = 42,
             verbose: bool = True,
             population_size: int = 10,  # ✅ 修复1: 从50降至10
             crossover_prob: float = 0.8,
             mutation_prob: float = 0.2,
-            tournament_size: int = 3,
-            use_legacy_spm: bool = True  # ✅ 新增：使用旧版SPM确保公平对比
+            tournament_size: int = 3
         ):
             """
             初始化GA优化器
             
             参数：
-                evaluator: MultiObjectiveEvaluator实例
+                evaluator: MultiObjectiveEvaluator实例（使用SPM_v3）
                 pbounds: 参数边界
                 random_state: 随机种子
                 verbose: 是否打印详细信息
@@ -76,26 +78,22 @@ if DEAP_AVAILABLE:
                 crossover_prob: 交叉概率
                 mutation_prob: 变异概率
                 tournament_size: 锦标赛大小
-                use_legacy_spm: 是否使用旧版SPM（推荐True）
             """
-            # ✅ 如果使用旧版SPM，替换evaluator
-            if use_legacy_spm:
-                original_weights = getattr(evaluator, 'weights', {
-                    'time': 0.4, 'temp': 0.35, 'aging': 0.25
-                })
-                evaluator = LegacyEvaluator(
-                    weights=original_weights,
-                    verbose=False  # GA已有进度输出，关闭evaluator的verbose
-                )
-                if verbose:
-                    print("[GA] 使用旧版SPM（v2.1，无自动微分）确保公平对比")
+            # ✅ 包装evaluator为标量值接口
+            wrapped_evaluator = ScalarOnlyEvaluatorWrapper(
+                base_evaluator=evaluator,
+                verbose=False  # GA已有进度输出，关闭evaluator的verbose
+            )
             
-            super().__init__(evaluator, pbounds, random_state, verbose)
+            super().__init__(wrapped_evaluator, pbounds, random_state, verbose)
             
             self.population_size = population_size
             self.crossover_prob = crossover_prob
             self.mutation_prob = mutation_prob
             self.tournament_size = tournament_size
+            
+            if self.verbose:
+                print("[GA] 使用SPM_v3（统一物理内核）")
             
             # 评估计数器（用于显示进度）
             self.eval_counter = 0

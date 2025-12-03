@@ -146,8 +146,7 @@ class SPM_Sensitivity:
         if mode == 'auto_diff':
             self._setup_auto_diff_mode()
         
-        if self.verbose:
-            print(f"\n[SPM v3.0] Mode={mode}, Penalty Gradients={'ON' if enable_penalty_gradients else 'OFF'}")
+        # 不再打印模式信息，避免输出过多
     
     def _setup_auto_diff_mode(self):
         """配置自动微分模式（使用IDAKLU求解器）"""

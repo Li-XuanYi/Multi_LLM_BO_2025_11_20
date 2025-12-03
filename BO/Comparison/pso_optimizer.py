@@ -1,11 +1,12 @@
 """
-Particle Swarm Optimization (PSO) Wrapper - MEMORY OPTIMIZED VERSION
-粒子群优化算法包装器（内存优化版）
+Particle Swarm Optimization (PSO) Wrapper - UNIFIED KERNEL VERSION
+粒子群优化算法包装器（统一物理内核版）
 
-修复内容：
+修改内容：
 1. ✅ 粒子数从30降至10（公平评估预算）
 2. ✅ 添加内存释放机制
 3. ✅ 显示实时评估进度
+4. ✅ 使用MultiObjectiveEvaluator（SPM_v3）统一物理内核
 
 评估次数对比（n_iterations=20）：
 - 修复前：30×20 = 600次
@@ -13,7 +14,7 @@ Particle Swarm Optimization (PSO) Wrapper - MEMORY OPTIMIZED VERSION
 - BO基准：5 + 20 = 25次
 
 Author: Research Team
-Date: 2025-11-26 (内存优化版)
+Date: 2025-12-02 (统一物理内核版)
 """
 
 import numpy as np
@@ -27,11 +28,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from Comparison.base_optimizer import BaseOptimizer, OptimizerFactory
 
-# 导入LegacyEvaluator（使用旧版SPM）
+# 导入ScalarOnlyEvaluatorWrapper（统一使用SPM_v3）
 try:
-    from Comparison.traditional_bo import LegacyEvaluator
+    from Comparison.traditional_bo import ScalarOnlyEvaluatorWrapper
+    from llmbo_core.multi_objective_evaluator import MultiObjectiveEvaluator
 except ImportError:
-    from BO.Comparison.traditional_bo import LegacyEvaluator
+    from BO.Comparison.traditional_bo import ScalarOnlyEvaluatorWrapper
+    from BO.llmbo_core.multi_objective_evaluator import MultiObjectiveEvaluator
 
 # 检查 pyswarms 是否可用
 try:
@@ -46,28 +49,27 @@ except ImportError:
 if PYSWARMS_AVAILABLE:
     class ParticleSwarmOptimization(BaseOptimizer):
         """
-        粒子群优化器包装器（内存优化版）
+        粒子群优化器包装器（统一物理内核版）
         
-        使用pyswarms库实现标准PSO，优化评估预算和内存使用
+        使用pyswarms库实现标准PSO，统一使用SPM_v3物理内核
         """
         
         def __init__(
             self,
-            evaluator,
+            evaluator: MultiObjectiveEvaluator,
             pbounds: Dict[str, tuple],
             random_state: int = 42,
             verbose: bool = True,
             n_particles: int = 10,  # ✅ 修复1: 从30降至10
             w: float = 0.7,  # 惯性权重
             c1: float = 1.5,  # 认知系数
-            c2: float = 1.5,  # 社会系数
-            use_legacy_spm: bool = True  # ✅ 新增：使用旧版SPM确保公平对比
+            c2: float = 1.5  # 社会系数
         ):
             """
             初始化PSO优化器
             
             参数：
-                evaluator: MultiObjectiveEvaluator实例
+                evaluator: MultiObjectiveEvaluator实例（使用SPM_v3）
                 pbounds: 参数边界
                 random_state: 随机种子
                 verbose: 是否打印详细信息
@@ -75,26 +77,22 @@ if PYSWARMS_AVAILABLE:
                 w: 惯性权重
                 c1: 认知系数（个体最优影响）
                 c2: 社会系数（全局最优影响）
-                use_legacy_spm: 是否使用旧版SPM（推荐True）
             """
-            # ✅ 如果使用旧版SPM，替换evaluator
-            if use_legacy_spm:
-                original_weights = getattr(evaluator, 'weights', {
-                    'time': 0.4, 'temp': 0.35, 'aging': 0.25
-                })
-                evaluator = LegacyEvaluator(
-                    weights=original_weights,
-                    verbose=False  # PSO已有进度输出，关闭evaluator的verbose
-                )
-                if verbose:
-                    print("[PSO] 使用旧版SPM（v2.1，无自动微分）确保公平对比")
+            # ✅ 包装evaluator为标量值接口
+            wrapped_evaluator = ScalarOnlyEvaluatorWrapper(
+                base_evaluator=evaluator,
+                verbose=False  # PSO已有进度输出，关闭evaluator的verbose
+            )
             
-            super().__init__(evaluator, pbounds, random_state, verbose)
+            super().__init__(wrapped_evaluator, pbounds, random_state, verbose)
             
             self.n_particles = n_particles
             self.w = w
             self.c1 = c1
             self.c2 = c2
+            
+            if self.verbose:
+                print("[PSO] 使用SPM_v3（统一物理内核）")
             
             # 评估计数器（用于显示进度）
             self.eval_counter = 0

@@ -1,14 +1,16 @@
 """
-Algorithm Comparison Runner - FIXED VERSION
-算法对比运行框架 (修复版)
+Algorithm Comparison Runner - UNIFIED KERNEL VERSION
+算法对比运行框架 (统一物理内核版)
 
-修复内容:
-1. ✅ 修复导入路径错误
-2. ✅ 添加依赖检查和诊断
-3. ✅ 确保OptimizerFactory注册正确
+修改内容:
+1. 修复导入路径错误
+2. 添加依赖检查和诊断
+3. 确保OptimizerFactory注册正确
+4. 统一物理内核：所有算法使用MultiObjectiveEvaluator（SPM_v3）
+5. 传统算法通过ScalarOnlyEvaluatorWrapper只使用标量值
 
 Author: Research Team
-Date: 2025-01-19 (修复版)
+Date: 2025-12-02 (统一物理内核版)
 """
 
 import numpy as np
