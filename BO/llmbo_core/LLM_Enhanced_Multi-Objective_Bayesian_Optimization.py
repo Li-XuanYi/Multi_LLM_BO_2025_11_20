@@ -703,7 +703,7 @@ async def main():
         llm_base_url='https://api.nuwaapi.com/v1',
         llm_model="gpt-4o",
         n_warmstart=5,
-        n_iterations=20,  # 测试用，正式运行建议50+
+        n_iterations=60,  # 测试用，正式运行建议50+
         n_random_init=0,
         objective_weights={'time': 0.4, 'temp': 0.35, 'aging': 0.25},
         enable_llm_warmstart=True,
