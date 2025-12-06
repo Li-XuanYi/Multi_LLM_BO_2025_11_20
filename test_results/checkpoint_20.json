@@ -1,0 +1,489 @@
+{
+  "metadata": {
+    "created_at": "2025-12-06T09:03:20.686339",
+    "total_evaluations": 20,
+    "valid_evaluations": 12,
+    "run_id": "20251206_090320"
+  },
+  "statistics": {
+    "total_evaluations": 20,
+    "valid_evaluations": 12,
+    "scalarized": {
+      "best": 0.0,
+      "worst": 0.4358932490102961,
+      "mean": 0.3052543406971968,
+      "std": 0.11170766908653727,
+      "median": 0.2861520569363869
+    },
+    "objectives": {
+      "time": {
+        "min": 59.10008392399789,
+        "max": 93.55555555555556,
+        "mean": 68.6508032777122,
+        "std": 8.86304431669436
+      },
+      "temp": {
+        "min": 303.7936643853746,
+        "max": 308.52285151442766,
+        "mean": 306.1497019368281,
+        "std": 1.2696996884267893
+      },
+      "aging": {
+        "min": 1.4413105523438503,
+        "max": 1.9915020611380498,
+        "mean": 1.6444320089505844,
+        "std": 0.15329864826820358
+      }
+    },
+    "dynamic_bounds": {
+      "time": {
+        "min": 59.10008392399789,
+        "max": 93.55555555555556
+      },
+      "temp": {
+        "min": 303.7936643853746,
+        "max": 308.52285151442766
+      },
+      "aging": {
+        "min": 1.4413105523438503,
+        "max": 1.9915020611380498
+      }
+    }
+  },
+  "dynamic_bounds": {
+    "time": {
+      "min": 59.10008392399789,
+      "max": 93.55555555555556
+    },
+    "temp": {
+      "min": 303.7936643853746,
+      "max": 308.52285151442766
+    },
+    "aging": {
+      "min": 1.4413105523438503,
+      "max": 1.9915020611380498
+    }
+  },
+  "full_history": [
+    {
+      "eval_id": 1,
+      "params": {
+        "current1": 5.288307370553814,
+        "charging_number": 21,
+        "current2": 2.5875658118882527
+      },
+      "objectives": {
+        "time": 300,
+        "temp": 319.0,
+        "aging": 1.0
+      },
+      "scalarized": 0.95,
+      "valid": false,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:03:22.705637",
+      "metadata": {
+        "termination": "invalid"
+      }
+    },
+    {
+      "eval_id": 2,
+      "params": {
+        "current1": 3.0025194177483567,
+        "charging_number": 21,
+        "current2": 3.493159351253164
+      },
+      "objectives": {
+        "time": 66.93767086889211,
+        "temp": 305.1108769393452,
+        "aging": 1.5986252927224314
+      },
+      "scalarized": 0.28194671174841035,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:03:25.008954",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 3,
+      "params": {
+        "current1": 5.756281835022943,
+        "charging_number": 12,
+        "current2": 2.521369551265201
+      },
+      "objectives": {
+        "time": 300,
+        "temp": 319.0,
+        "aging": 1.0
+      },
+      "scalarized": 0.95,
+      "valid": false,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:03:34.229068",
+      "metadata": {
+        "termination": "invalid"
+      }
+    },
+    {
+      "eval_id": 4,
+      "params": {
+        "current1": 4.594709647396449,
+        "charging_number": 8,
+        "current2": 1.7021238593043293
+      },
+      "objectives": {
+        "time": 71.55555555555556,
+        "temp": 306.05360888336827,
+        "aging": 1.5637727070431708
+      },
+      "scalarized": 0.2903574021243634,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:03:37.217370",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 5,
+      "params": {
+        "current1": 3.9571687412747014,
+        "charging_number": 11,
+        "current2": 2.7942107031055867
+      },
+      "objectives": {
+        "time": 64.67454930514307,
+        "temp": 305.25941888701817,
+        "aging": 1.5353085861427047
+      },
+      "scalarized": 0.28185972540280907,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:03:39.395405",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 6,
+      "params": {
+        "current1": 5.0065515122180555,
+        "charging_number": 13,
+        "current2": 2.155732594001684
+      },
+      "objectives": {
+        "time": 300,
+        "temp": 319.0,
+        "aging": 1.0
+      },
+      "scalarized": 0.95,
+      "valid": false,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:03:51.114979",
+      "metadata": {
+        "termination": "invalid"
+      }
+    },
+    {
+      "eval_id": 7,
+      "params": {
+        "current1": 5.22088113299517,
+        "charging_number": 25,
+        "current2": 2.5211315968824213
+      },
+      "objectives": {
+        "time": 300,
+        "temp": 319.0,
+        "aging": 1.0
+      },
+      "scalarized": 0.95,
+      "valid": false,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:03:52.420822",
+      "metadata": {
+        "termination": "invalid"
+      }
+    },
+    {
+      "eval_id": 8,
+      "params": {
+        "current1": 5.247160257220827,
+        "charging_number": 14,
+        "current2": 1.5581932348024798
+      },
+      "objectives": {
+        "time": 300,
+        "temp": 319.0,
+        "aging": 1.0
+      },
+      "scalarized": 0.95,
+      "valid": false,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:03:53.653598",
+      "metadata": {
+        "termination": "invalid"
+      }
+    },
+    {
+      "eval_id": 9,
+      "params": {
+        "current1": 5.645452277542796,
+        "charging_number": 7,
+        "current2": 1.7109321880608719
+      },
+      "objectives": {
+        "time": 69.55555555555556,
+        "temp": 308.52285151442766,
+        "aging": 1.5886609274512011
+      },
+      "scalarized": 0.3725668393763151,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:10.239568",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 10,
+      "params": {
+        "current1": 4.533723292743043,
+        "charging_number": 8,
+        "current2": 1.0982378166875073
+      },
+      "objectives": {
+        "time": 71.55555555555556,
+        "temp": 305.88096212190794,
+        "aging": 1.4878918251138913
+      },
+      "scalarized": 0.4244857065030447,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:12.403513",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 11,
+      "params": {
+        "current1": 4.301168727805887,
+        "charging_number": 15,
+        "current2": 2.967374083628509
+      },
+      "objectives": {
+        "time": 61.77533976455812,
+        "temp": 307.120590679095,
+        "aging": 1.6209386430537904
+      },
+      "scalarized": 0.2744962199776649,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:14.759956",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 12,
+      "params": {
+        "current1": 3.163270468822571,
+        "charging_number": 19,
+        "current2": 1.8576992489559498
+      },
+      "objectives": {
+        "time": 93.55555555555556,
+        "temp": 303.7936643853746,
+        "aging": 1.9915020611380498
+      },
+      "scalarized": 0.4325,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:32.204165",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 13,
+      "params": {
+        "current1": 3.631134818036845,
+        "charging_number": 25,
+        "current2": 3.997593512121114
+      },
+      "objectives": {
+        "time": 63.39615277171554,
+        "temp": 306.73054635524556,
+        "aging": 1.686131727609805
+      },
+      "scalarized": 0.27213306600465714,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:34.360527",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 14,
+      "params": {
+        "current1": 5.819650085667641,
+        "charging_number": 13,
+        "current2": 1.8460922922404295
+      },
+      "objectives": {
+        "time": 300,
+        "temp": 319.0,
+        "aging": 1.0
+      },
+      "scalarized": 0.9375,
+      "valid": false,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:35.568837",
+      "metadata": {
+        "termination": "invalid"
+      }
+    },
+    {
+      "eval_id": 15,
+      "params": {
+        "current1": 5.985999659943292,
+        "charging_number": 15,
+        "current2": 3.663345160370786
+      },
+      "objectives": {
+        "time": 300,
+        "temp": 319.0,
+        "aging": 1.0
+      },
+      "scalarized": 0.9375,
+      "valid": false,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:44.317064",
+      "metadata": {
+        "termination": "invalid"
+      }
+    },
+    {
+      "eval_id": 16,
+      "params": {
+        "current1": 4.272515239041995,
+        "charging_number": 21,
+        "current2": 3.5287011962022037
+      },
+      "objectives": {
+        "time": 59.10008392399789,
+        "temp": 307.5727536158059,
+        "aging": 1.6539854015182414
+      },
+      "scalarized": 0.32195034647475984,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:46.469617",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 17,
+      "params": {
+        "current1": 4.023328365117358,
+        "charging_number": 9,
+        "current2": 2.8775866670737185
+      },
+      "objectives": {
+        "time": 61.23515406569655,
+        "temp": 304.86940131638465,
+        "aging": 1.4413105523438503
+      },
+      "scalarized": 0.0,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:04:48.587085",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 18,
+      "params": {
+        "current1": 3.7137858590635706,
+        "charging_number": 24,
+        "current2": 2.7312301888790644
+      },
+      "objectives": {
+        "time": 75.7046471554578,
+        "temp": 305.700649349672,
+        "aging": 1.9083042499917582
+      },
+      "scalarized": 0.4358932490102961,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:05:06.086289",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 19,
+      "params": {
+        "current1": 4.36531012503899,
+        "charging_number": 14,
+        "current2": 2.7802005474640072
+      },
+      "objectives": {
+        "time": 64.76381925486321,
+        "temp": 307.18109919429196,
+        "aging": 1.6567521332781183
+      },
+      "scalarized": 0.27486282174404164,
+      "valid": true,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:05:08.252632",
+      "metadata": {
+        "termination": "completed"
+      }
+    },
+    {
+      "eval_id": 20,
+      "params": {
+        "current1": 5.899361506546869,
+        "charging_number": 18,
+        "current2": 2.418263541412021
+      },
+      "objectives": {
+        "time": 300,
+        "temp": 319.0,
+        "aging": 1.0
+      },
+      "scalarized": 0.9375,
+      "valid": false,
+      "source": "bo",
+      "timestamp": "2025-12-06T09:05:09.430680",
+      "metadata": {
+        "termination": "invalid"
+      }
+    }
+  ],
+  "best_solution": {
+    "eval_id": 17,
+    "params": {
+      "current1": 4.023328365117358,
+      "charging_number": 9,
+      "current2": 2.8775866670737185
+    },
+    "objectives": {
+      "time": 61.23515406569655,
+      "temp": 304.86940131638465,
+      "aging": 1.4413105523438503
+    },
+    "scalarized": 0.0,
+    "valid": true,
+    "source": "bo",
+    "timestamp": "2025-12-06T09:04:48.587085",
+    "metadata": {
+      "termination": "completed"
+    }
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "run_id": "test_run_001",
+  "timestamp": "2025-12-06T15:43:07.841986",
+  "version": "2.0",
+  "config": {
+    "test": true,
+    "n_strategies": 3
+  },
+  "statistics": {
+    "total_evaluations": 3
+  },
+  "best_solution": {
+    "eval_id": 3,
+    "params": {
+      "current1": 4.0,
+      "charging_number": 15,
+      "current2": 2.5
+    },
+    "objectives": {
+      "time": 73.87813170010163,
+      "temp": 306.10788027690717,
+      "aging": 1.773740960487089
+    },
+    "normalized": {
+      "time": 0.4562723692864402,
+      "temp": 0.7370800251733788,
+      "aging": 1.0
+    },
+    "scalarized": 0.2925023566369455,
+    "valid": true,
+    "source": "unknown"
+  },
+  "pareto_front": [
+    {
+      "eval_id": 3,
+      "params": {
+        "current1": 4.0,
+        "charging_number": 15,
+        "current2": 2.5
+      },
+      "objectives": {
+        "time": 73.87813170010163,
+        "temp": 306.10788027690717,
+        "aging": 1.773740960487089
+      },
+      "scalarized": 0.2925023566369455,
+      "valid": true
+    }
+  ],
+  "database": [
+    {
+      "eval_id": 1,
+      "params": {
+        "current1": 4.5,
+        "charging_number": 10,
+        "current2": 2.8
+      },
+      "objectives": {
+        "time": 62.02207763505028,
+        "temp": 306.6121210845693,
+        "aging": 1.529003735779611
+      },
+      "normalized": {
+        "time": 0.3715862688217877,
+        "temp": 0.78292009859721,
+        "aging": 1.0
+      },
+      "scalarized": 0.3076548616109104,
+      "valid": true,
+      "violations": 0,
+      "termination": "completed",
+      "gradients": null
+    },
+    {
+      "eval_id": 2,
+      "params": {
+        "current1": 5.2,
+        "charging_number": 8,
+        "current2": 3.1
+      },
+      "objectives": {
+        "time": 52.94553136890194,
+        "temp": 307.8529458758116,
+        "aging": 1.3907090246291176
+      },
+      "normalized": {
+        "time": 0.3067537954921567,
+        "temp": 0.895722352346509,
+        "aging": 1.0
+      },
+      "scalarized": 0.34781304039718514,
+      "valid": true,
+      "violations": 0,
+      "termination": "completed",
+      "gradients": null
+    },
+    {
+      "eval_id": 3,
+      "params": {
+        "current1": 4.0,
+        "charging_number": 15,
+        "current2": 2.5
+      },
+      "objectives": {
+        "time": 73.87813170010163,
+        "temp": 306.10788027690717,
+        "aging": 1.773740960487089
+      },
+      "normalized": {
+        "time": 0.4562723692864402,
+        "temp": 0.7370800251733788,
+        "aging": 1.0
+      },
+      "scalarized": 0.2925023566369455,
+      "valid": true,
+      "violations": 0,
+      "termination": "completed",
+      "gradients": null
+    }
+  ],
+  "analysis": {
+    "total_evaluations": 3,
+    "valid_count": 3,
+    "invalid_count": 0,
+    "validity_rate": 1.0,
+    "objectives": {
+      "time": {
+        "min": 52.94553136890194,
+        "max": 73.87813170010163,
+        "mean": 62.94858023468462,
+        "std": 8.570773767355442
+      },
+      "temp": {
+        "min": 306.10788027690717,
+        "max": 307.8529458758116,
+        "mean": 306.857649079096,
+        "std": 0.7332696108036272
+      },
+      "aging": {
+        "min": 1.3907090246291176,
+        "max": 1.773740960487089,
+        "mean": 1.5644845736319393,
+        "std": 0.1583719953417769
+      }
+    },
+    "scalarized": {
+      "best": 0.2925023566369455,
+      "worst": 0.34781304039718514,
+      "mean": 0.31599008621501373,
+      "std": 0.023337022252306105,
+      "median": 0.3076548616109104
+    },
+    "parameters": {
+      "current1": {
+        "min": 4.0,
+        "max": 5.2,
+        "mean": 4.566666666666666
+      },
+      "charging_number": {
+        "min": 8,
+        "max": 15,
+        "mean": 11.0
+      },
+      "current2": {
+        "min": 2.5,
+        "max": 3.1,
+        "mean": 2.8000000000000003
+      }
+    }
+  },
+  "metadata": {}
+}

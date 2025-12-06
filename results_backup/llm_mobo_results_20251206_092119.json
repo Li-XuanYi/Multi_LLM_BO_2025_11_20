@@ -1,0 +1,20 @@
+{
+  "best_solution": {
+    "eval_id": 51,
+    "params": {
+      "current1": 3.4269179379852597,
+      "charging_number": 6,
+      "current2": 3.3060268738768577
+    },
+    "objectives": {
+      "time": 51.99165157101877,
+      "temp": 304.55205588530004,
+      "aging": 1.1718114356573466
+    },
+    "normalized": {
+      "time": 0.008531880907908218,
+      "temp": 0.0809874538940197,
+      "aging": 0.0
+    },
+    "scalarized": 0.029933526924210405,
+    "valid": 

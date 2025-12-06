@@ -48,6 +48,12 @@ try:
 except ImportError:
     from SPM_v3 import SPM_Sensitivity as SPM
 
+# 新增: 历史数据驱动的WarmStart
+try:
+    from .historical_warmstart import HistoricalWarmStart
+except ImportError:
+    from historical_warmstart import HistoricalWarmStart
+
 
 class MultiObjectiveEvaluator:
     """
@@ -155,13 +161,13 @@ class MultiObjectiveEvaluator:
         llm_model: str = "gpt-3.5-turbo"
     ) -> List[Dict]:
         """
-        使用 LLM 进行热启动初始化
+        使用 LLM 进行热启动初始化 - 新版本（历史数据驱动）
         
-        功能：
-        1. 如果提供 API key：调用 LLM 生成基于物理知识的初始策略
-        2. 如果没有 API key：回退到随机策略生成
-        3. 对所有生成的策略进行评估
-        4. 返回评估结果列表
+        改进：
+        1. 使用HistoricalWarmStart自动加载历史数据
+        2. 基于电化学领域知识生成高质量prompt
+        3. 包含few-shot learning examples（最优/最差解）
+        4. 动态探索模式（conservative/balanced/aggressive）
         
         参数：
             n_strategies: 要生成的策略数量
@@ -171,21 +177,10 @@ class MultiObjectiveEvaluator:
         
         返回：
             List[Dict]: 评估结果列表
-            [
-                {
-                    'params': {'current1': ..., 'charging_number': ..., 'current2': ...},
-                    'scalarized': ...,
-                    'objectives': {'time': ..., 'temp': ..., 'aging': ...},
-                    'valid': True/False,
-                    'source': 'llm_warmstart' or 'random_warmstart',
-                    'reasoning': '...'  # 可选，LLM 的推理过程
-                },
-                ...
-            ]
         """
         if self.verbose:
             print("\n" + "=" * 70)
-            print("开始 LLM Warm Start 初始化")
+            print("开始 LLM Warm Start 初始化（历史数据驱动版）")
             print("=" * 70)
             print(f"目标策略数量: {n_strategies}")
             print(f"API Key: {'已提供' if llm_api_key else '未提供（将使用随机策略）'}")
@@ -193,26 +188,35 @@ class MultiObjectiveEvaluator:
         
         results = []
         
-        # 根据是否有 API key 选择策略
+        # ====== 使用新的HistoricalWarmStart ======
         if llm_api_key is not None:
-            # 尝试使用 LLM 生成策略
             try:
                 if self.verbose:
-                    print("\n尝试使用 LLM 生成初始策略...")
+                    print("\n使用HistoricalWarmStart生成策略...")
                 
-                strategies = await self._llm_generate_strategies(
+                # 创建HistoricalWarmStart实例
+                warmstart_generator = HistoricalWarmStart(
+                    result_dir='./results',  # 确保Result目录正确
+                    llm_api_key=llm_api_key,
+                    llm_base_url=llm_base_url,
+                    llm_model=llm_model,
+                    verbose=self.verbose
+                )
+                
+                # 生成策略（自动加载历史数据 + 生成高质量prompt + 调用LLM）
+                strategies = await warmstart_generator.generate_warmstart_strategies_async(
                     n_strategies=n_strategies,
-                    api_key=llm_api_key,
-                    base_url=llm_base_url,
-                    model=llm_model
+                    n_historical_runs=5,  # 加载最近5次运行
+                    objective_weights=self.weights,
+                    exploration_mode='balanced'  # 可选: 'conservative', 'balanced', 'aggressive'
                 )
                 
                 if self.verbose:
-                    print(f"[OK] LLM successfully generated {len(strategies)} strategies")
+                    print(f"[OK] HistoricalWarmStart成功生成 {len(strategies)} 个策略")
                 
             except Exception as e:
                 if self.verbose:
-                    print(f"⚠️  LLM 调用失败: {e}")
+                    print(f"⚠️  HistoricalWarmStart失败: {e}")
                     print("   回退到随机策略生成...")
                 
                 # 回退到随机策略
@@ -225,7 +229,7 @@ class MultiObjectiveEvaluator:
             
             strategies = self._generate_random_strategies(n_strategies)
         
-        # 评估所有策略
+        # ====== 评估所有策略（保持不变） ======
         if self.verbose:
             print(f"\n开始评估 {len(strategies)} 个策略...")
         
@@ -267,148 +271,14 @@ class MultiObjectiveEvaluator:
                 continue
         
         if self.verbose:
-            print(f"\n[OK] Warm Start completed! Successfully evaluated {len(results)}/{len(strategies)} strategies")
+            print(f"\n[OK] Warm Start完成！成功评估 {len(results)}/{len(strategies)} 个策略")
             print("=" * 70)
         
         return results
     
-    async def _llm_generate_strategies(
-        self,
-        n_strategies: int,
-        api_key: str,
-        base_url: str,
-        model: str
-    ) -> List[Dict]:
-        """
-        使用 LLM 生成初始充电策略
-        
-        返回：
-            List[Dict]: 策略列表
-            [
-                {
-                    'params': {'current1': ..., 'charging_number': ..., 'current2': ...},
-                    'source': 'llm_warmstart',
-                    'reasoning': '...'
-                },
-                ...
-            ]
-        """
-        from openai import AsyncOpenAI
-        
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
-        
-        # 构建 prompt
-        prompt = f"""You are an expert in electrochemistry and lithium-ion battery fast-charging optimization.
-
-TASK:
-Generate {n_strategies} diverse two-stage constant-current (CC) charging strategies for a lithium-ion battery.
-
-BATTERY SPECIFICATIONS:
-- Nominal Capacity: 5.0 Ah
-- Voltage Range: 2.5V - 4.2V
-- Initial State: 0% SOC, 298K
-- Target: Charge to 80% SOC
-
-OPTIMIZATION OBJECTIVES (competing):
-1. Minimize charging time
-2. Minimize peak temperature (constraint: ≤309K)
-3. Minimize capacity degradation (SEI growth)
-
-PARAMETER CONSTRAINTS:
-- current1 (Stage 1 current): 3.0 - 6.0 A (typically 1.0-1.2C)
-- charging_number (switching time step): 5 - 25 steps
-- current2 (Stage 2 current): 1.0 - 4.0 A (typically 0.2-0.8C)
-
-PHYSICAL CONSIDERATIONS:
-1. High Stage 1 current → faster charging BUT higher temperature & more aging
-2. Long Stage 1 duration → more heat accumulation
-3. Low Stage 2 current → thermal relaxation BUT slower completion
-4. Trade-off: charging speed vs. battery health
-
-STRATEGY DIVERSITY:
-Generate strategies with different focus:
-- Aggressive: Fast charging (high I1, short transition)
-- Conservative: Battery health (moderate I1, early transition to low I2)
-- Balanced: Compromise between speed and health
-
-OUTPUT FORMAT (JSON array):
-[
-    {{
-        "current1": float (3.0-6.0),
-        "charging_number": int (5-25),
-        "current2": float (1.0-4.0),
-        "reasoning": "Brief explanation of strategy rationale (1-2 sentences)"
-    }},
-    ...
-]
-
-CRITICAL: Output ONLY the JSON array, no additional text."""
-
-        try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": "You are an expert in battery fast-charging optimization."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,  # 增加多样性
-                max_tokens=1000,
-                response_format={"type": "json_object"} if "gpt-4" in model.lower() else None
-            )
-            
-            content = response.choices[0].message.content
-            
-            # 尝试解析 JSON（处理可能的 markdown 包装）
-            content = content.strip()
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.startswith("```"):
-                content = content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
-            content = content.strip()
-            
-            # 解析 JSON
-            parsed = json.loads(content)
-            
-            # 处理不同的响应格式
-            if isinstance(parsed, list):
-                strategies_data = parsed
-            elif isinstance(parsed, dict):
-                # 可能是 {"strategies": [...]}
-                strategies_data = parsed.get('strategies', [parsed])
-            else:
-                raise ValueError(f"Unexpected response format: {type(parsed)}")
-            
-            # 转换为标准格式
-            strategies = []
-            for s in strategies_data[:n_strategies]:
-                strategy = {
-                    'params': {
-                        'current1': float(s['current1']),
-                        'charging_number': int(s['charging_number']),
-                        'current2': float(s['current2'])
-                    },
-                    'source': 'llm_warmstart',
-                    'reasoning': s.get('reasoning', '')
-                }
-                
-                # 验证参数范围
-                if (3.0 <= strategy['params']['current1'] <= 6.0 and
-                    5 <= strategy['params']['charging_number'] <= 25 and
-                    1.0 <= strategy['params']['current2'] <= 4.0):
-                    strategies.append(strategy)
-            
-            if len(strategies) < n_strategies:
-                # LLM 生成的策略不足，补充随机策略
-                n_needed = n_strategies - len(strategies)
-                random_strategies = self._generate_random_strategies(n_needed)
-                strategies.extend(random_strategies)
-            
-            return strategies
-        
-        except Exception as e:
-            raise Exception(f"LLM API 调用失败: {e}")
+    # ❌ 已删除 _llm_generate_strategies 方法
+    # 原因: 使用新的HistoricalWarmStart替代硬编码prompt
+    # 新方法自动加载历史数据，生成基于电化学领域知识的高质量prompt
     
     def _generate_random_strategies(self, n_strategies: int) -> List[Dict]:
         """

@@ -69,10 +69,12 @@ try:
     from .multi_objective_evaluator import MultiObjectiveEvaluator
     from .LLM_enhanced_surrogate_modeling import LLMEnhancedBO
     from .LLM_Enhanced_Expected_Improvement import LLMEnhancedEI
+    from .result_manager import ResultManager  # 新增
 except ImportError:
     from multi_objective_evaluator import MultiObjectiveEvaluator
     from LLM_enhanced_surrogate_modeling import LLMEnhancedBO
     from LLM_Enhanced_Expected_Improvement import LLMEnhancedEI
+    from result_manager import ResultManager  # 新增
 
 # 导入bayes_opt
 from bayes_opt.bayesian_optimization import BayesianOptimization
@@ -186,6 +188,9 @@ class LLMEnhancedMultiObjectiveBO:
         
         # 创建保存目录
         os.makedirs(save_dir, exist_ok=True)
+        
+        # ====== 新增: 初始化ResultManager ======
+        self.result_manager = ResultManager(save_dir=save_dir)
         
         # 优化历史
         self.optimization_history = []
@@ -548,36 +553,54 @@ class LLMEnhancedMultiObjectiveBO:
     
     def export_results(self, filename: str = None) -> str:
         """
-        导出结果到JSON文件
+        导出结果到JSON文件 - 使用ResultManager保存完整数据
         
-        返回：
+        改进:
+        1. 使用ResultManager.save_optimization_run保存完整数据
+        2. 不仅保存最优解,还保存所有评估点
+        3. 包含详细统计分析
+        
+        返回:
             保存的文件路径
         """
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"llm_mobo_results_{timestamp}.json"
+            run_id = f"llm_mobo_{timestamp}"
+        else:
+            run_id = filename.replace('.json', '')
         
-        filepath = os.path.join(self.save_dir, filename)
+        # 获取完整数据
+        database = self.evaluator.export_database()
+        best_solution = self.evaluator.get_best_solution()
+        pareto_front = self.evaluator.get_pareto_front()
+        statistics = self.evaluator.get_statistics()
         
-        # 准备可序列化的数据
-        export_data = {
-            'best_solution': self.evaluator.get_best_solution(),
-            'pareto_front': self.evaluator.get_pareto_front(),
-            'database': self.evaluator.export_database(),
-            'statistics': self.evaluator.get_statistics(),
-            'config': {
-                'llm_model': self.llm_model,
-                'n_warmstart': self.n_warmstart,
-                'n_random_init': self.n_random_init,
-                'n_iterations': self.n_iterations,
-                'objective_weights': self.evaluator.weights
-            }
+        # 配置信息
+        config = {
+            'llm_model': self.llm_model,
+            'n_warmstart': self.n_warmstart,
+            'n_random_init': self.n_random_init,
+            'n_iterations': self.n_iterations,
+            'objective_weights': self.evaluator.weights,
+            'enable_llm_warmstart': self.enable_llm_warmstart,
+            'enable_llm_surrogate': self.enable_llm_surrogate,
+            'enable_llm_ei': self.enable_llm_ei
         }
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(export_data, f, indent=2, ensure_ascii=False)
+        # ====== 使用ResultManager保存 ======
+        filepath = self.result_manager.save_optimization_run(
+            run_id=run_id,
+            database=database,
+            best_solution=best_solution,
+            pareto_front=pareto_front,
+            config=config,
+            statistics=statistics,
+            metadata={
+                'elapsed_time': self.optimization_history[-1].get('elapsed_time', 0) if self.optimization_history else 0
+            }
+        )
         
-        print(f"\n结果已保存至: {filepath}")
+        print(f"\n✓ 完整优化结果已保存")
         return filepath
     
     def plot_optimization_history(self, save_path: str = None) -> None:
