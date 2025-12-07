@@ -146,7 +146,7 @@ class ResultManager:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(complete_data_serializable, f, indent=2, ensure_ascii=False)
         
-        print(f"\n[ResultManager] ✓ 完整运行数据已保存:")
+        print(f"\n[ResultManager] [OK] 完整运行数据已保存:")
         print(f"  文件: {filepath}")
         print(f"  总评估数: {len(database)}")
         print(f"  有效评估: {statistics.get('valid_evaluations', 'N/A')}")
@@ -539,15 +539,15 @@ if __name__ == "__main__":
         statistics=mock_stats
     )
     
-    print(f"\n✓ 测试数据已保存到: {filepath}")
+    print(f"\n[OK] 测试数据已保存到: {filepath}")
     
     # 测试加载
     historical = manager.load_historical_data(n_recent=1)
-    print(f"\n✓ 加载了 {len(historical)} 个历史文件")
+    print(f"\n[OK] 加载了 {len(historical)} 个历史文件")
     
     # 测试查询
     top_solutions = manager.get_top_k_solutions(historical, k=2)
-    print(f"\n✓ Top-2 solutions: {len(top_solutions)} 个")
+    print(f"\n[OK] Top-2 solutions: {len(top_solutions)} 个")
     
     print("\n" + "=" * 80)
     print("ResultManager 测试完成")

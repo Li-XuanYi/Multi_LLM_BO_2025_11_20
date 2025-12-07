@@ -103,7 +103,7 @@ class PyBaMMSensitivityComputer:
                 print(f"  Penalty Gradients: {'ENABLED' if enable_penalty_gradients else 'DISABLED'}")
                 if enable_penalty_gradients:
                     print(f"  Penalty Scale: {penalty_scale}")
-                    print("  ✓ Constraint violations will return gradients pointing to feasible region")
+                    print("  [OK] Constraint violations will return gradients pointing to feasible region")
     
     def compute_multi_objective_gradients(
         self,
@@ -114,7 +114,7 @@ class PyBaMMSensitivityComputer:
         """
         计算多目标梯度
         
-        ∇f = [∂time/∂θ, ∂temp/∂θ, ∂aging/∂θ]
+        ∇f = [dtime/dθ, dtemp/dθ, daging/dθ]
         
         **v3.0 改进**：即使在约束边界，梯度也不为零
         
@@ -165,9 +165,9 @@ class PyBaMMSensitivityComputer:
                 # **关键改进**：即使违反约束，仍然返回梯度
                 if 'sensitivities' in result and result['sensitivities']:
                     if self.verbose:
-                        print(f"  ✓ Penalty gradients returned (pointing to feasible region)")
+                        print(f"  [OK] Penalty gradients returned (pointing to feasible region)")
                         sample_grad = result['sensitivities']['temp']['current1']
-                        print(f"    Example: ∂temp/∂I1 = {sample_grad:.4f}")
+                        print(f"    Example: dtemp/dI1 = {sample_grad:.4f}")
                     return result['sensitivities']
                 else:
                     warnings.warn("No sensitivities returned, returning zero gradients")
@@ -178,7 +178,7 @@ class PyBaMMSensitivityComputer:
                 gradients = result['sensitivities']
                 
                 if self.verbose:
-                    print(f"  ✓ Gradients computed successfully")
+                    print(f"  [OK] Gradients computed successfully")
                 
                 return gradients
             else:
@@ -197,7 +197,7 @@ class PyBaMMSensitivityComputer:
         """
         计算雅可比矩阵（所有目标对所有参数的梯度）
         
-        J[i,j] = ∂objective_i / ∂param_j
+        J[i,j] = dobjective_i / dparam_j
         
         返回：
             J: (3, 3) 雅可比矩阵

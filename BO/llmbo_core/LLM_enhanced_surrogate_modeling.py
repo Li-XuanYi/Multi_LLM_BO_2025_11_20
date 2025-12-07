@@ -48,6 +48,12 @@ try:
 except ImportError:
     from PybammSensitivity_v3 import PyBaMMSensitivityComputer
 
+# 导入混合耦合估计器
+try:
+    from .coupling_estimator_hybrid import HybridCouplingEstimator
+except ImportError:
+    from coupling_estimator_hybrid import HybridCouplingEstimator
+
 
 # ============================================================
 # 1. 数据驱动的耦合矩阵估计 (使用精确梯度)
@@ -69,7 +75,8 @@ class CouplingMatrixEstimator:
     def estimate_from_history(
         self,
         history: List[Dict],
-        use_scalarized: bool = True
+        use_scalarized: bool = True,
+        use_hybrid: bool = True  # ✨ 新增: 是否使用混合估计
     ) -> np.ndarray:
         """
         从历史评估数据估计耦合矩阵
@@ -77,10 +84,32 @@ class CouplingMatrixEstimator:
         参数:
             history: 评估历史记录
             use_scalarized: 是否使用标量化值(True)还是多目标(False)
+            use_hybrid: 是否使用混合方法(数据驱动+LLM知识)
         
         返回:
             W: (3, 3) 耦合权重矩阵
         """
+        
+        # ✨ 优先使用混合方法(如果启用且有LLM API密钥)
+        if use_hybrid and hasattr(self, 'llm_api_key') and self.llm_api_key:
+            try:
+                if self.verbose:
+                    print("[Coupling Matrix] 使用混合估计方法(数据+LLM知识)")
+                
+                hybrid_estimator = HybridCouplingEstimator(
+                    result_dir='./results',
+                    llm_api_key=self.llm_api_key,
+                    llm_base_url=getattr(self, 'llm_base_url', 'https://api.nuwaapi.com/v1'),
+                    llm_model=getattr(self, 'llm_model', 'gpt-4o'),
+                    verbose=self.verbose
+                )
+                return hybrid_estimator.estimate_coupling_matrix()
+                
+            except Exception as e:
+                if self.verbose:
+                    print(f"[Coupling Matrix] 混合估计失败: {e}, 回退到纯数据驱动")
+        
+        # ===== 原有逻辑: 纯数据驱动方法 =====
         if len(history) < 5:
             if self.verbose:
                 print("[Coupling Matrix] Insufficient data, using default coupling matrix")
@@ -89,7 +118,7 @@ class CouplingMatrixEstimator:
         # 提取有效评估的梯度信息
         gradients_list = []
         
-        # ✅ 修复后代码:
+        # [OK] 修复后代码:
         for record in history:
             if not record['valid']:
                 continue
@@ -108,7 +137,7 @@ class CouplingMatrixEstimator:
             return self._get_default_coupling_matrix()
         
         # 方法: 计算梯度的平均外积
-        # W[i,j] ≈ <∂f/∂θi · ∂f/∂θj>
+        # W[i,j] ≈ <df/dθi · df/dθj>
         
         W = np.zeros((3, 3))
         param_names = ['current1', 'charging_number', 'current2']
@@ -147,7 +176,7 @@ class CouplingMatrixEstimator:
             for i, name in enumerate(['I1', 't1', 'I2']):
                 print(f"  {name}  {W[i,0]:.3f}  {W[i,1]:.3f}  {W[i,2]:.3f}")
         
-        # ✅ 如果有LLM顾问，融合LLM知识
+        # [OK] 如果有LLM顾问，融合LLM知识
         if hasattr(self, 'llm_advisor') and self.llm_advisor is not None:
             try:
                 import asyncio
@@ -230,17 +259,17 @@ Current2         {coupling_matrix[2,0]:.3f}      {coupling_matrix[2,1]:.3f}     
 Multi-Objective Gradients at current best point:
 Current1 = {best_params['current1']:.2f}A, ChargingNum = {best_params['charging_number']}, Current2 = {best_params['current2']:.2f}A
 
-∂(time)/∂Current1:   {gradients['time']['current1']:.3f}
-∂(time)/∂ChargingNum: {gradients['time']['charging_number']:.3f}
-∂(time)/∂Current2:   {gradients['time']['current2']:.3f}
+d(time)/dCurrent1:   {gradients['time']['current1']:.3f}
+d(time)/dChargingNum: {gradients['time']['charging_number']:.3f}
+d(time)/dCurrent2:   {gradients['time']['current2']:.3f}
 
-∂(temp)/∂Current1:   {gradients['temp']['current1']:.3f}
-∂(temp)/∂ChargingNum: {gradients['temp']['charging_number']:.3f}
-∂(temp)/∂Current2:   {gradients['temp']['current2']:.3f}
+d(temp)/dCurrent1:   {gradients['temp']['current1']:.3f}
+d(temp)/dChargingNum: {gradients['temp']['charging_number']:.3f}
+d(temp)/dCurrent2:   {gradients['temp']['current2']:.3f}
 
-∂(aging)/∂Current1:   {gradients['aging']['current1']:.3f}
-∂(aging)/∂ChargingNum: {gradients['aging']['charging_number']:.3f}
-∂(aging)/∂Current2:   {gradients['aging']['current2']:.3f}
+d(aging)/dCurrent1:   {gradients['aging']['current1']:.3f}
+d(aging)/dChargingNum: {gradients['aging']['charging_number']:.3f}
+d(aging)/dCurrent2:   {gradients['aging']['current2']:.3f}
 """
         
         prompt = f"""You are an electrochemistry expert analyzing battery fast-charging optimization results.
@@ -437,8 +466,8 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
     k_coupling(θ, θ') = Σᵢⱼ wᵢⱼ · φ(θᵢ, θ'ᵢ, θⱼ, θ'ⱼ)
     
     修复内容:
-    1. ✅ 正确实现 hyperparameter_length_scale 属性
-    2. ✅ 实现正确的梯度计算（对log(length_scale)求导）
+    1. [OK] 正确实现 hyperparameter_length_scale 属性
+    2. [OK] 实现正确的梯度计算（对log(length_scale)求导）
     """
     
     def __init__(
@@ -486,11 +515,11 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                     diff_m = X[:, m].reshape(-1, 1) - Y[:, m].reshape(1, -1)
                     diff_n = X[:, n].reshape(-1, 1) - Y[:, n].reshape(1, -1)
                     
-                    # ✅ 修复：使用平方距离
+                    # [OK] 修复：使用平方距离
                     sq_dist_m = diff_m ** 2
                     sq_dist_n = diff_n ** 2
                     
-                    # ✅ 修复：正定核函数
+                    # [OK] 修复：正定核函数
                     K += w_mn * np.exp(-(sq_dist_m + sq_dist_n) / (2 * self.length_scale ** 2))
         
         if eval_gradient:
@@ -513,7 +542,7 @@ class CouplingKernel(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                         
                         exp_term = np.exp(-total_sq_dist / (2 * self.length_scale ** 2))
                         
-                        # ✅ 修复：正确的梯度
+                        # [OK] 修复：正确的梯度
                         K_gradient[:, :, 0] += w_mn * exp_term * (total_sq_dist / (self.length_scale ** 2))
             
             return K, K_gradient
@@ -614,19 +643,20 @@ class CouplingStrengthScheduler:
                 if self.verbose:
                     print(f"  [γ警告] 检测到停滞")
 
-        # 多策略更新
+        # ✨ 严格按照论文公式更新
+        # 论文公式: γ_{k+1} = γ_k · (1 + 0.1 · (f_min,k - f_min,k-1) / f_min,k-1)
+        # 注意: 论文中的 (f_min,k - f_min,k-1) 表示"新值 - 旧值"
         old_gamma = self.gamma
-
-        if is_stagnant and improvement_rate >= -0.01:
-            self.gamma *= 0.8  # 停滞惩罚
-            update_reason = "停滞惩罚"
-        elif improvement_rate > 0.05:
-            self.gamma *= (1.0 + 0.1 * improvement_rate)
-            self.gamma = min(self.gamma, self.gamma_max)
-            update_reason = "改善奖励"
+        
+        if abs(prev_fmin) > 1e-10:
+            # paper_improvement = (新值 - 旧值) / 旧值
+            paper_improvement = (current_fmin - prev_fmin) / abs(prev_fmin)
+            self.gamma = self.gamma * (1.0 + 0.1 * paper_improvement)
+            update_reason = "论文公式"
         else:
-            self.gamma *= 0.95  # 指数衰减
-            update_reason = "指数衰减"
+            # 第一次或prev_fmin接近0,使用默认衰减
+            self.gamma *= 0.95
+            update_reason = "默认衰减"
 
         # 限制范围
         self.gamma = np.clip(self.gamma, self.gamma_min, self.gamma_max)
@@ -694,6 +724,11 @@ class LLMEnhancedBO:
         # ✨ 组件初始化 - 使用新的PyBaMM灵敏度计算器
         self.sensitivity_computer = PyBaMMSensitivityComputer(verbose=verbose)
         self.coupling_estimator = CouplingMatrixEstimator(verbose=verbose)
+        # ✨ 传递LLM API密钥给耦合估计器(供混合估计使用)
+        self.coupling_estimator.llm_api_key = llm_api_key
+        self.coupling_estimator.llm_base_url = llm_base_url
+        self.coupling_estimator.llm_model = llm_model
+        
         self.gamma_scheduler = CouplingStrengthScheduler(
             initial_gamma=initial_gamma,
             verbose=verbose
@@ -890,13 +925,13 @@ if __name__ == "__main__":
     
     # 这里只是结构测试,实际使用需要配合MultiObjectiveEvaluator
     
-    print("\n✓ 模块加载成功")
-    print("✓ PyBaMMSensitivityComputer")
-    print("✓ CouplingMatrixEstimator (基于精确梯度)")
-    print("✓ LLMSurrogateAdvisor")
-    print("✓ CouplingKernel")
-    print("✓ CouplingStrengthScheduler")
-    print("✓ LLMEnhancedBO v2.0")
+    print("\n[OK] 模块加载成功")
+    print("[OK] PyBaMMSensitivityComputer")
+    print("[OK] CouplingMatrixEstimator (基于精确梯度)")
+    print("[OK] LLMSurrogateAdvisor")
+    print("[OK] CouplingKernel")
+    print("[OK] CouplingStrengthScheduler")
+    print("[OK] LLMEnhancedBO v2.0")
     
     print("\n" + "=" * 70)
     print("准备就绪,请在主优化循环中使用。")

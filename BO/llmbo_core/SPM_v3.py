@@ -10,8 +10,8 @@ SPM with Dual Sensitivity Modes (v3.0)
 **优化1：智能惩罚梯度（Penalty Gradients）**
 - 问题：旧版在违反约束时返回零梯度，导致优化器失去方向
 - 解决：返回"指向可行域"的惩罚梯度
-  * 过温 → ∂temp/∂θ 梯度放大，指向降温方向
-  * 过压 → ∂voltage/∂θ 梯度放大，指向降压方向
+  * 过温 → dtemp/dθ 梯度放大，指向降温方向
+  * 过压 → dvoltage/dθ 梯度放大，指向降压方向
   * 耦合矩阵能正确捕捉边界处的物理耦合关系
 
 **优化2：PyBaMM原生自动微分（Auto-Diff）**
@@ -736,9 +736,9 @@ if __name__ == "__main__":
         if result.get('sensitivities'):
             sens = result['sensitivities']
             print(f"\n  Sensitivities:")
-            print(f"    ∂temp/∂I1 = {sens['temp']['current1']:.4f}")
-            print(f"    ∂temp/∂t1 = {sens['temp']['charging_number']:.4f}")
-            print(f"    ∂temp/∂I2 = {sens['temp']['current2']:.4f}")
+            print(f"    dtemp/dI1 = {sens['temp']['current1']:.4f}")
+            print(f"    dtemp/dt1 = {sens['temp']['charging_number']:.4f}")
+            print(f"    dtemp/dI2 = {sens['temp']['current2']:.4f}")
     else:
         print(f"  Constraint violations: {result['constraint_violations']}")
         if result.get('sensitivities'):
@@ -757,7 +757,7 @@ if __name__ == "__main__":
         print(f"  Violations: {list(result2['constraint_violations'].keys())}")
         if result2.get('sensitivities'):
             sens2 = result2['sensitivities']
-            print(f"  Penalty ∂temp/∂I1 = {sens2['temp']['current1']:.4f} (should be non-zero)")
+            print(f"  Penalty dtemp/dI1 = {sens2['temp']['current1']:.4f} (should be non-zero)")
     
     print("\n" + "=" * 70)
     print("Test completed")

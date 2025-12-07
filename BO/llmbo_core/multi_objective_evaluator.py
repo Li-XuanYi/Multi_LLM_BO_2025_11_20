@@ -5,7 +5,7 @@
 =============================================================================
 修复内容
 =============================================================================
-✅ 添加了 initialize_with_llm_warmstart() 异步方法
+[OK] 添加了 initialize_with_llm_warmstart() 异步方法
    - 支持 LLM API 调用生成智能初始策略
    - 无 API key 时自动回退到随机策略
    - 完整的错误处理和日志输出
@@ -27,7 +27,7 @@
    - 动态权重更新（支持分解策略）
    
 4. LLM 集成接口
-   - ✅ LLM Warm Start 初始化（新增）
+   - [OK] LLM Warm Start 初始化（新增）
    - 外部评估添加（用于 Warm Start）
    - 语义约束 S 预留接口
    - 最佳解查询
@@ -216,7 +216,7 @@ class MultiObjectiveEvaluator:
                 
             except Exception as e:
                 if self.verbose:
-                    print(f"⚠️  HistoricalWarmStart失败: {e}")
+                    print(f"[Warning]  HistoricalWarmStart失败: {e}")
                     print("   回退到随机策略生成...")
                 
                 # 回退到随机策略
@@ -276,7 +276,7 @@ class MultiObjectiveEvaluator:
         
         return results
     
-    # ❌ 已删除 _llm_generate_strategies 方法
+    # [X] 已删除 _llm_generate_strategies 方法
     # 原因: 使用新的HistoricalWarmStart替代硬编码prompt
     # 新方法自动加载历史数据，生成基于电化学领域知识的高质量prompt
     
@@ -434,7 +434,11 @@ class MultiObjectiveEvaluator:
         }
     
     def _update_bounds(self) -> None:
-        """更新分位数边界（Q5/Q95）"""
+        """
+        更新分位数边界（Q5/Q95）
+        
+        改进: 确保边界有合理的最小范围,避免数值不稳定
+        """
         if self.eval_count < 10:
             return
         
@@ -443,6 +447,7 @@ class MultiObjectiveEvaluator:
         if len(valid_indices) < 5:
             return
         
+        # 计算Q5/Q95分位数
         self.bounds = {
             'time': {
                 'best': np.percentile([self.history['time'][i] for i in valid_indices], 5),
@@ -458,23 +463,85 @@ class MultiObjectiveEvaluator:
             }
         }
         
+        # ✅ 确保边界有最小范围（避免除零）
+        min_ranges = {
+            'time': 5.0,      # 最小时间范围5步
+            'temp': 1.0,      # 最小温度范围1K
+            'aging': 0.01     # 最小老化范围0.01%
+        }
+        
+        for key, min_range in min_ranges.items():
+            current_range = self.bounds[key]['worst'] - self.bounds[key]['best']
+            if current_range < min_range:
+                # 扩展边界到最小范围
+                mid = (self.bounds[key]['best'] + self.bounds[key]['worst']) / 2
+                self.bounds[key]['best'] = mid - min_range / 2
+                self.bounds[key]['worst'] = mid + min_range / 2
+                
+                if self.verbose:
+                    print(f"  [边界调整] {key} 范围过窄 ({current_range:.4f}), 扩展到 {min_range}")
+        
         if self.verbose:
             print(f"\n[分位数边界已更新] (第 {self.eval_count} 次评估)")
+            for key in ['time', 'temp', 'aging']:
+                print(f"  {key}: [{self.bounds[key]['best']:.4f}, {self.bounds[key]['worst']:.4f}]")
     
     def _normalize(self, objectives: Dict[str, float]) -> Dict[str, float]:
-        """归一化目标值到 [0, 1]"""
+        """
+        归一化目标值到 [0, 1]
+        
+        改进: 添加数值稳定性保护,避免边界过窄导致除零错误
+        """
+        # 优先使用动态边界,不足则使用临时边界
         bounds = self.bounds if self.bounds is not None else self.temp_bounds
+        
+        # ✅ 定义最小有效范围（相对于临时边界）
+        min_ranges = {
+            'time': 5.0,      # 最小时间范围5步（临时边界范围140）
+            'temp': 1.0,      # 最小温度范围1K（临时边界范围11K）
+            'aging': 0.001    # 最小老化范围0.001%（临时边界范围0.5%）
+        }
         
         normalized = {}
         for key in ['time', 'temp', 'aging']:
             best = bounds[key]['best']
             worst = bounds[key]['worst']
+            value = objectives[key]
             
-            if worst - best < 1e-10:
-                normalized[key] = 0.0
+            # 计算分母
+            denominator = worst - best
+            min_range = min_ranges[key]
+            
+            # ✅ 数值稳定性检查：边界范围必须大于最小有效范围
+            if abs(denominator) < min_range:
+                # 边界过窄,尝试使用临时边界作为fallback
+                if bounds is not self.temp_bounds:
+                    # 当前使用的是动态边界,fallback到临时边界
+                    temp_best = self.temp_bounds[key]['best']
+                    temp_worst = self.temp_bounds[key]['worst']
+                    temp_denominator = temp_worst - temp_best
+                    
+                    if abs(temp_denominator) >= min_range:
+                        # 临时边界有效
+                        normalized[key] = (value - temp_best) / temp_denominator
+                        if self.verbose and self.eval_count % 10 == 0:
+                            print(f"  [Warning] {key}动态边界过窄({denominator:.6f}<{min_range}), 使用固定边界")
+                    else:
+                        # 临时边界也过窄,使用中间值
+                        normalized[key] = 0.5
+                        if self.verbose and self.eval_count % 10 == 0:
+                            print(f"  [Warning] {key}所有边界过窄, 使用默认值0.5")
+                else:
+                    # 已经在使用临时边界且仍过窄
+                    normalized[key] = 0.5
+                    if self.verbose and self.eval_count % 10 == 0:
+                        print(f"  [Warning] {key}固定边界过窄({denominator:.6f}<{min_range}), 使用默认值0.5")
             else:
-                normalized[key] = (objectives[key] - best) / (worst - best)
-                normalized[key] = np.clip(normalized[key], 0.0, 1.0)
+                # 边界正常,进行标准归一化
+                normalized[key] = (value - best) / denominator
+            
+            # 裁剪到[0, 1]范围
+            normalized[key] = np.clip(normalized[key], 0.0, 1.0)
         
         return normalized
     

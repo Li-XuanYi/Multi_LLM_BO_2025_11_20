@@ -145,8 +145,8 @@ class HistoricalWarmStart:
             )
             
             if self.verbose:
-                print(f"  ✓ 最优解: {len(historical_best)} 个")
-                print(f"  ✓ 最差解: {len(historical_worst)} 个")
+                print(f"  [OK] 最优解: {len(historical_best)} 个")
+                print(f"  [OK] 最差解: {len(historical_worst)} 个")
                 if historical_best:
                     print(f"  全局最优标量值: {historical_best[0].get('scalarized', 'N/A'):.4f}")
         else:
@@ -166,7 +166,7 @@ class HistoricalWarmStart:
         )
         
         if self.verbose:
-            print(f"  ✓ Prompt长度: {len(prompt)} 字符")
+            print(f"  [OK] Prompt长度: {len(prompt)} 字符")
             print(f"  包含历史样例: {len(historical_best[:3]) if historical_best else 0} 个最优 + {len(historical_worst[:2]) if historical_worst else 0} 个最差")
         
         # ====== 4. 调用LLM生成策略 ======
@@ -182,7 +182,7 @@ class HistoricalWarmStart:
             strategies = await self._call_llm_async(prompt, n_strategies)
             
             if self.verbose:
-                print(f"  ✓ LLM成功生成 {len(strategies)} 个策略")
+                print(f"  [OK] LLM成功生成 {len(strategies)} 个策略")
             
             return strategies
             

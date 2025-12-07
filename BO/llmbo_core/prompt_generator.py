@@ -340,4 +340,4 @@ if __name__ == "__main__":
     print(prompt[:1000])
     print("...")
     print(f"\n总长度: {len(prompt)} 字符")
-    print("\n✓ Prompt生成器测试完成")
+    print("\n[OK] Prompt生成器测试完成")

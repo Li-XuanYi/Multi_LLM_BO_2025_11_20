@@ -600,7 +600,7 @@ class LLMEnhancedMultiObjectiveBO:
             }
         )
         
-        print(f"\n✓ 完整优化结果已保存")
+        print(f"\n[OK] 完整优化结果已保存")
         return filepath
     
     def plot_optimization_history(self, save_path: str = None) -> None:

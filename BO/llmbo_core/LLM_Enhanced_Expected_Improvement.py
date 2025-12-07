@@ -95,7 +95,7 @@ class OptimizationStateDetector:
         }
         """
         if len(self.history_fmin) < 3:
-        # ✅ 即使数据不足，也返回基本的 metrics
+        # [OK] 即使数据不足，也返回基本的 metrics
             current_val = self.history_fmin[-1] if len(self.history_fmin) > 0 else 0.0
             best_val = min(self.history_fmin) if len(self.history_fmin) > 0 else 0.0
         
@@ -713,7 +713,7 @@ class LLMEnhancedEI:
         # 估计参数敏感度
         sensitivity_info = self.sensitivity_estimator.estimate_sensitivity(history)
         
-        # ✅ 新增: 停滞检测和强制探索
+        # [OK] 新增: 停滞检测和强制探索
         forced_exploration = False
         if state_info['state'] in ['oscillating', 'local_optimum'] and state_info['confidence'] >= 0.9:
             # 检查最近5次的改善情况
@@ -817,13 +817,13 @@ if __name__ == "__main__":
     print("测试 LLM-Enhanced Expected Improvement")
     print("=" * 70)
     
-    print("\n✓ 模块加载成功")
-    print("✓ OptimizationStateDetector")
-    print("✓ LLMSamplingAdvisor")
-    print("✓ SamplingParameterComputer")
-    print("✓ ParameterSensitivityEstimator")
-    print("✓ LLMWeightFunction")
-    print("✓ LLMEnhancedEI")
+    print("\n[OK] 模块加载成功")
+    print("[OK] OptimizationStateDetector")
+    print("[OK] LLMSamplingAdvisor")
+    print("[OK] SamplingParameterComputer")
+    print("[OK] ParameterSensitivityEstimator")
+    print("[OK] LLMWeightFunction")
+    print("[OK] LLMEnhancedEI")
     
     print("\n" + "=" * 70)
     print("准备就绪！可以与bayes_opt集成。")
