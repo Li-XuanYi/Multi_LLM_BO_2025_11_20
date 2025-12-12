@@ -841,17 +841,28 @@ class LLMEnhancedBO:
         gamma = self.gamma_scheduler.gamma
         self.composite_kernel = base_kernel + gamma * coupling_kernel
         
-        # ✨ 准备训练数据 - 带标准化
-        X_raw = []
-        y = []
-        for record in history:
-            if record['valid']:
-                p = record['params']
-                X_raw.append([p['current1'], p['charging_number'], p['current2']])
-                y.append(record['scalarized'])
-        
-        X_raw = np.array(X_raw)
-        y = np.array(y)
+        # 准备训练数据
+        if (len(history) > 0 and 
+            isinstance(history[0], dict) and 
+            'data_columns' in history[0]):
+            data_cols = history[0]['data_columns']
+            X_raw = np.array(data_cols['X'])
+            y = np.array(data_cols['scalarized_Y'])
+            mask_valid = np.array(data_cols['mask_valid'])
+            
+            X_raw = X_raw[mask_valid]
+            y = y[mask_valid]
+        else:
+            X_raw = []
+            y = []
+            for record in history:
+                if record['valid']:
+                    p = record['params']
+                    X_raw.append([p['current1'], p['charging_number'], p['current2']])
+                    y.append(record['scalarized'])
+            
+            X_raw = np.array(X_raw)
+            y = np.array(y)
         
         # ✨ 核心修改: 归一化输入到 [0, 1]
         X_normalized = self.scaler.transform(X_raw)

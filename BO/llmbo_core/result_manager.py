@@ -89,12 +89,14 @@ class ResultManager:
             保存的文件路径
         """
         
+        pareto_ids = set(p.get('eval_id') for p in pareto_front)
+        
         # 准备完整的数据结构
         complete_data = {
             # ====== 元信息 ======
             'run_id': run_id,
             'timestamp': datetime.now().isoformat(),
-            'version': '2.0',
+            'version': '3.0',
             
             # ====== 配置信息 ======
             'config': config,
@@ -126,7 +128,41 @@ class ResultManager:
             ],
             
             # ====== 完整评估数据库 ======
-            'database': database,  # 这是关键!保存所有评估点
+            'database': database,
+            
+            # ====== 列式存储格式 ======
+            'data_columns': {
+                'count': len(database),
+                'param_names': ['current1', 'charging_number', 'current2'],
+                'objective_names': ['time', 'temp', 'aging'],
+                'X': [
+                    [d['params']['current1'], d['params']['charging_number'], d['params']['current2']]
+                    for d in database
+                ],
+                'Y': [
+                    [d['objectives']['time'], d['objectives']['temp'], d['objectives']['aging']]
+                    for d in database
+                ],
+                'scalarized_Y': [d.get('scalarized', float('inf')) for d in database],
+                'mask_valid': [d.get('valid', True) for d in database],
+                'mask_pareto': [d.get('eval_id') in pareto_ids for d in database],
+                'source': [d.get('source', 'unknown') for d in database]
+            },
+            
+            # ====== 优化摘要 ======
+            'optimization_summary': {
+                'global_best_scalarized': best_solution.get('scalarized'),
+                'valid_count': statistics.get('valid_evaluations', len([d for d in database if d.get('valid', True)])),
+                'pareto_count': len(pareto_front),
+                'pareto_indices': [p.get('eval_id') for p in pareto_front]
+            },
+            
+            # ====== LLM知识缓存 ======
+            'llm_knowledge_cache': {
+                'experiment_summary': metadata.get('llm_summary', '') if metadata else '',
+                'key_insights': metadata.get('llm_insights', '') if metadata else '',
+                'failure_modes': metadata.get('llm_failures', '') if metadata else ''
+            },
             
             # ====== 数据分析 ======
             'analysis': self._analyze_database(database),
@@ -316,12 +352,37 @@ class ResultManager:
         
         all_solutions = []
         
-        # 从所有历史运行中收集有效解
         for run_data in historical_data:
-            database = run_data.get('database', [])
-            for eval_point in database:
-                if eval_point.get('valid', True):
-                    all_solutions.append(eval_point)
+            if 'data_columns' in run_data and metric == 'scalarized':
+                import numpy as np
+                
+                X = np.array(run_data['data_columns']['X'])
+                Y = np.array(run_data['data_columns']['Y'])
+                scalarized = np.array(run_data['data_columns']['scalarized_Y'])
+                mask_valid = np.array(run_data['data_columns']['mask_valid'])
+                
+                valid_indices = np.where(mask_valid)[0]
+                
+                for idx in valid_indices:
+                    all_solutions.append({
+                        'params': {
+                            'current1': X[idx, 0],
+                            'charging_number': int(X[idx, 1]),
+                            'current2': X[idx, 2]
+                        },
+                        'objectives': {
+                            'time': Y[idx, 0],
+                            'temp': Y[idx, 1],
+                            'aging': Y[idx, 2]
+                        },
+                        'scalarized': scalarized[idx],
+                        'valid': True
+                    })
+            else:
+                database = run_data.get('database', [])
+                for eval_point in database:
+                    if eval_point.get('valid', True):
+                        all_solutions.append(eval_point)
         
         if not all_solutions:
             return []
