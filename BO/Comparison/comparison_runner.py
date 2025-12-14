@@ -292,8 +292,22 @@ class ComparisonRunner:
                 
                 if self.verbose:
                     print(f"  [OK] Trial {trial + 1} completed")
-                    print(f"    Best value: {result['best_solution']['scalarized']:.4f}")
-                    print(f"    Runtime: {result['elapsed_time']:.1f}s")
+                    print(f"    标量化值: {result['best_solution']['scalarized']:.4f}")
+                    print(f"    运行时间: {result['elapsed_time']:.1f}s")
+                    
+                    # 显示最优充电参数
+                    params = result['best_solution']['params']
+                    print(f"    充电参数:")
+                    print(f"      电流1 (I1):      {params['current1']:.4f} A")
+                    print(f"      充电次数 (t1):   {params['charging_number']:.0f} 次")
+                    print(f"      电流2 (I2):      {params['current2']:.4f} A")
+                    
+                    # 显示性能指标
+                    obj = result['best_solution']['objectives']
+                    print(f"    性能指标:")
+                    print(f"      充电时间:   {obj['time']:.2f} 步")
+                    print(f"      峰值温度:   {obj['temp']:.2f} K")
+                    print(f"      容量衰减:   {obj['aging']:.6f} %")
             
             except Exception as e:
                 print(f"  [FAIL] Trial {trial + 1} failed: {e}")

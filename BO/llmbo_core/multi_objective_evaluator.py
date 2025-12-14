@@ -55,6 +55,96 @@ except ImportError:
     from historical_warmstart import HistoricalWarmStart
 
 
+class SoftConstraintHandler:
+    """
+    软约束处理器 - 指数/平方惩罚机制
+    
+    设计理念:
+    - 接近限制时施加平滑惩罚，而非硬截断
+    - 保持目标函数连续可微
+    - BO可以学习如何避开危险区域
+    """
+    
+    def __init__(
+        self,
+        temp_max: float = 315.0,
+        temp_penalty_rate: float = 0.15,
+        temp_penalty_scale: float = 0.05,
+        aging_threshold: float = 0.3,
+        aging_penalty_scale: float = 0.1,
+        verbose: bool = True
+    ):
+        self.temp_max = temp_max
+        self.temp_penalty_rate = temp_penalty_rate
+        self.temp_penalty_scale = temp_penalty_scale
+        self.aging_threshold = aging_threshold
+        self.aging_penalty_scale = aging_penalty_scale
+        self.verbose = verbose
+        
+        if self.verbose:
+            print("\n" + "="*70)
+            print("🔧 软约束处理器已初始化")
+            print("="*70)
+            print(f"温度约束: T_max = {temp_max}K (指数惩罚)")
+            print(f"  λ = {temp_penalty_rate} (增长率)")
+            print(f"  α = {temp_penalty_scale} (缩放)")
+            print(f"老化约束: A_threshold = {aging_threshold}% (平方惩罚)")
+            print(f"  β = {aging_penalty_scale}")
+            print("="*70)
+    
+    def compute_temperature_penalty(self, temp: float) -> Tuple[float, str]:
+        """温度软约束 (指数惩罚)"""
+        if temp <= self.temp_max:
+            return 0.0, "safe"
+        
+        excess = temp - self.temp_max
+        penalty = self.temp_penalty_scale * (np.exp(self.temp_penalty_rate * excess) - 1)
+        
+        if excess <= 3.0:
+            status = "mild"
+        elif excess <= 6.0:
+            status = "moderate"
+        else:
+            status = "severe"
+        
+        return penalty, status
+    
+    def compute_aging_penalty(self, aging: float) -> Tuple[float, str]:
+        """老化软约束 (平方惩罚)"""
+        if aging <= self.aging_threshold:
+            return 0.0, "safe"
+        
+        excess = aging - self.aging_threshold
+        penalty = self.aging_penalty_scale * (excess ** 2)
+        
+        if excess <= 0.1:
+            status = "mild"
+        elif excess <= 0.3:
+            status = "moderate"
+        else:
+            status = "severe"
+        
+        return penalty, status
+    
+    def compute_total_penalty(self, objectives: Dict[str, float]) -> Dict:
+        """计算总惩罚"""
+        temp = objectives['temp']
+        aging = objectives['aging']
+        
+        temp_penalty, temp_status = self.compute_temperature_penalty(temp)
+        aging_penalty, aging_status = self.compute_aging_penalty(aging)
+        
+        total_penalty = temp_penalty + aging_penalty
+        is_severe = (temp_status == "severe" or aging_status == "severe")
+        
+        return {
+            'total_penalty': total_penalty,
+            'penalties': {'temp': temp_penalty, 'aging': aging_penalty},
+            'statuses': {'temp': temp_status, 'aging': aging_status},
+            'is_severe': is_severe
+        }
+
+
 class MultiObjectiveEvaluator:
     """
     多目标充电策略评价器
@@ -148,6 +238,15 @@ class MultiObjectiveEvaluator:
             print(f"  温度: {self.temp_bounds['temp']}")
             print(f"  老化: {self.temp_bounds['aging']}")
             print("=" * 70)
+        
+        self.soft_constraints = SoftConstraintHandler(
+            temp_max=315.0,
+            temp_penalty_rate=0.15,
+            temp_penalty_scale=0.05,
+            aging_threshold=0.3,
+            aging_penalty_scale=0.1,
+            verbose=self.verbose
+        )
     
     # ============================================================
     # 新增：LLM Warm Start 方法
@@ -350,10 +449,13 @@ class MultiObjectiveEvaluator:
         # 5. 切比雪夫标量化
         scalarized = self._chebyshev_scalarize(normalized)
         
-        # 6. 约束违反惩罚（软约束）
-        if sim_result['constraint_violation'] > 0:
-            penalty = sim_result['constraint_violation'] * 0.5
-            scalarized += penalty
+        # 6. 软约束惩罚机制 (指数/平方)
+        constraint_result = self.soft_constraints.compute_total_penalty(objectives_only)
+        soft_penalty = constraint_result['total_penalty']
+        scalarized += soft_penalty
+        
+        if constraint_result['is_severe']:
+            scalarized += 0.1
         
         # 6.5 计算梯度
         gradients = None
@@ -385,10 +487,25 @@ class MultiObjectiveEvaluator:
         
         # 8. 可选：打印进度
         if self.verbose and self.eval_count % 5 == 0:
-            print(f"[Eval {self.eval_count}] 时间={sim_result['time']}, "
-                  f"温度={sim_result['temp']:.2f}K, "
-                  f"老化={sim_result['aging']:.6f}%, "
-                  f"标量化={scalarized:.4f}")
+            time_minutes = sim_result['time'] * 90 / 60
+            
+            constraint_info = self.soft_constraints.compute_total_penalty(objectives_only)
+            temp_status = constraint_info['statuses']['temp']
+            temp_penalty = constraint_info['penalties']['temp']
+            
+            status_icon = {
+                'safe': '✓',
+                'mild': '⚠',
+                'moderate': '⚠⚠',
+                'severe': '❌'
+            }.get(temp_status, '?')
+            
+            print(f"[Eval {self.eval_count}] "
+                  f"t={sim_result['time']:.0f}步({time_minutes:.1f}min), "
+                  f"T={sim_result['temp']:.2f}K{status_icon}, "
+                  f"A={sim_result['aging']:.4f}%, "
+                  f"penalty={temp_penalty:.4f}, "
+                  f"f={scalarized:.4f}")
         
         return scalarized
     

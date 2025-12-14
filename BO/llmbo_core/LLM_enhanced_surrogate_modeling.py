@@ -643,20 +643,19 @@ class CouplingStrengthScheduler:
                 if self.verbose:
                     print(f"  [γ警告] 检测到停滞")
 
-        # ✨ 严格按照论文公式更新
-        # 论文公式: γ_{k+1} = γ_k · (1 + 0.1 · (f_min,k - f_min,k-1) / f_min,k-1)
-        # 注意: 论文中的 (f_min,k - f_min,k-1) 表示"新值 - 旧值"
+        # 多策略更新
         old_gamma = self.gamma
-        
-        if abs(prev_fmin) > 1e-10:
-            # paper_improvement = (新值 - 旧值) / 旧值
-            paper_improvement = (current_fmin - prev_fmin) / abs(prev_fmin)
-            self.gamma = self.gamma * (1.0 + 0.1 * paper_improvement)
-            update_reason = "论文公式"
+
+        if is_stagnant and improvement_rate >= -0.01:
+            self.gamma *= 0.8
+            update_reason = "停滞惩罚"
+        elif improvement_rate > 0.05:
+            self.gamma *= (1.0 + 0.1 * improvement_rate)
+            self.gamma = min(self.gamma, self.gamma_max)
+            update_reason = "改善奖励"
         else:
-            # 第一次或prev_fmin接近0,使用默认衰减
             self.gamma *= 0.95
-            update_reason = "默认衰减"
+            update_reason = "指数衰减"
 
         # 限制范围
         self.gamma = np.clip(self.gamma, self.gamma_min, self.gamma_max)
