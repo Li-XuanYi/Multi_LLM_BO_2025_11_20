@@ -67,10 +67,10 @@ class SoftConstraintHandler:
     
     def __init__(
         self,
-        temp_max: float = 315.0,
+        temp_max: float = 318.0,  # ✅ 改进：309K + 3K裕度
         temp_penalty_rate: float = 0.15,
         temp_penalty_scale: float = 0.05,
-        aging_threshold: float = 0.3,
+        aging_threshold: float = 0.5,  # ✅ 对数空间阈值
         aging_penalty_scale: float = 0.1,
         verbose: bool = True
     ):
@@ -83,12 +83,12 @@ class SoftConstraintHandler:
         
         if self.verbose:
             print("\n" + "="*70)
-            print("🔧 软约束处理器已初始化")
+            print("🔧 软约束处理器已初始化 [v2.0]")
             print("="*70)
-            print(f"温度约束: T_max = {temp_max}K (指数惩罚)")
-            print(f"  λ = {temp_penalty_rate} (增长率)")
-            print(f"  α = {temp_penalty_scale} (缩放)")
-            print(f"老化约束: A_threshold = {aging_threshold}% (平方惩罚)")
+            print(f"温度约束: T_max = {temp_max}K (309K + 3K裕度)")
+            print(f"  λ = {temp_penalty_rate} (指数增长率)")
+            print(f"  α = {temp_penalty_scale} (惩罚缩放)")
+            print(f"老化约束: A_threshold = {aging_threshold} (对数空间阈值)")
             print(f"  β = {aging_penalty_scale}")
             print("="*70)
     
@@ -186,11 +186,40 @@ class MultiObjectiveEvaluator:
         if not np.isclose(weight_sum, 1.0):
             raise ValueError(f"权重之和必须为1.0，当前为 {weight_sum}")
         
-        # 历史数据存储
+        # ✅ 核心改进：物理边界（固定，基于电化学原理）
+        self.physical_bounds = {
+            'time': {
+                'min': 20,      # ✅ 最快20步（约40分钟）
+                'max': 120      # ✅ 最慢120步（约4小时）
+            },
+            'temp': {
+                'min': 298.0,   # 室温起始
+                'max': 318.0    # 
+            },
+            'aging': {
+                'min': 0.0,     # ✅ log1p(aging_raw*100) 最小应为 0
+                'max': 6.5      # ✅ log1p(5.0*100) ≈ 6.2（严重老化）+ 裕度
+            }
+        }
+        
+        # ✅ 运行时边界（单调扩展，从物理边界开始）
+        self.running_bounds = {
+            'time': {'min': self.physical_bounds['time']['min'], 
+                    'max': self.physical_bounds['time']['max']},
+            'temp': {'min': self.physical_bounds['temp']['min'], 
+                    'max': self.physical_bounds['temp']['max']},
+            'aging': {'min': self.physical_bounds['aging']['min'], 
+                     'max': self.physical_bounds['aging']['max']}
+        }
+        
+        # ✅ 原始历史数据（存储物理值）
+        self.raw_history = []
+        
+        # 历史数据存储（保留兼容性）
         self.history = {
             'time': [],      # 充电步数
             'temp': [],      # 峰值温度[K]
-            'aging': [],     # 容量衰减[%]
+            'aging': [],     # 容量衰减（对数值）
             'valid': []      # 是否满足约束
         }
         
@@ -201,14 +230,19 @@ class MultiObjectiveEvaluator:
         self.max_steps = max_steps
         self.verbose = verbose
         
-        # 动态分位数边界（初始为None，前10次用临时边界）
+        # ✅ 初始化梯度计算器（避免 verbose=False 时未定义）
+        self.spm_for_gradients = None
+        self.gradient_compute_interval = 3  # 每3次计算一次梯度
+        self.invalid_penalty = 0.5  # ✅ 无效点的额外惩罚（降低以避免f值过大）
+        
+        # 动态分位数边界（保留兼容性）
         self.bounds = None
         
-        # 临时固定边界（前10次使用）
+        # 临时固定边界（前10次使用，保留兼容性）
         self.temp_bounds = {
-            'time': {'best': 10, 'worst': 150},           # 步数
-            'temp': {'best': 298.0, 'worst': temp_max},   # 温度[K]
-            'aging': {'best': 0.0, 'worst': 0.5}          # 容量损失[%]
+            'time': {'best': 20, 'worst': 120},           # ✅ 改进：20-120步
+            'temp': {'best': 298.0, 'worst': 312.0},      # ✅ 改进：312K上限
+            'aging': {'best': 0.0, 'worst': 6.5}          # ✅ 对数空间，>=0
         }
         
         # 详细日志（用于后续分析）
@@ -222,29 +256,28 @@ class MultiObjectiveEvaluator:
                 init_t=298, 
                 mode='finite_difference',
                 enable_penalty_gradients=True,
-                penalty_scale=10.0
+                penalty_scale=10.0,
+                verbose=False  # ✅ 避免梯度计算时输出干扰
             )
-            self.gradient_compute_interval = 5
             print("[OK] Gradient computation enabled with penalty gradients (v3.0)")
             print("=" * 70)
-            print("多目标评价器已初始化")
+            print("多目标评价器 v2.0 已初始化（全局归一化）")
             print("=" * 70)
             print(f"权重设置: {self.weights}")
-            print(f"分位数更新间隔: 每 {update_interval} 次评估")
+            print(f"\n物理边界（固定）:")
+            for key in ['time', 'temp', 'aging']:
+                print(f"  {key}: {self.physical_bounds[key]}")
+            print(f"\n老化处理: log1p变换（替代×1000放大）")
             print(f"温度约束上限: {temp_max} K")
             print(f"最大步数限制: {max_steps} 步")
-            print(f"临时边界（前10次）:")
-            print(f"  时间: {self.temp_bounds['time']}")
-            print(f"  温度: {self.temp_bounds['temp']}")
-            print(f"  老化: {self.temp_bounds['aging']}")
             print("=" * 70)
         
         self.soft_constraints = SoftConstraintHandler(
-            temp_max=315.0,
+            temp_max=312.0,  # ✅ 使用增加裕度的温度上限
             temp_penalty_rate=0.15,
             temp_penalty_scale=0.05,
-            aging_threshold=0.3,
-            aging_penalty_scale=0.1,
+            aging_threshold=5.0,  # ✅ 对数空间的阈值（log1p(5%*100)≈6.2，设为5.0）
+            aging_penalty_scale=0.02,  # ✅ 降低惩罚系数
             verbose=self.verbose
         )
     
@@ -403,6 +436,139 @@ class MultiObjectiveEvaluator:
         return strategies
     
     # ============================================================
+    # 新增：对数变换和全局归一化方法 (v2.0)
+    # ============================================================
+    
+    def _apply_log_transform(self, aging_raw: float) -> float:
+        """
+        对老化值应用对数变换
+        
+        参数：
+            aging_raw: 原始容量衰减百分比（如0.1表示0.1%）
+        
+        返回：
+            对数变换值
+        """
+        # log1p(x) = log(1 + x)，避免log(0)问题
+        # 放大100倍再取对数，提升低老化区域分辨率
+        return np.log1p(aging_raw * 100)
+    
+    def get_normalized_history(self) -> List[Dict]:
+        """
+        ✅ 核心方法：基于全局统一边界重新归一化所有历史数据
+        
+        改进 v2.1：
+        - 使用 detailed_logs 替代 raw_history（保留 gradients 等字段）
+        - 对 valid 点 clip 到 [0,1]
+        - 对 invalid 点明确标记为最差（1.0）+ 额外惩罚
+        
+        这个方法会：
+        1. 计算当前所有有效数据的min/max
+        2. 与物理边界做单调扩展（只扩不缩）
+        3. 用统一边界重新归一化所有历史点
+        4. 重新计算标量化值
+        
+        返回：
+            规范化的历史数据列表（包含 gradients 等完整字段）
+        """
+        if len(self.detailed_logs) == 0:
+            return []
+        
+        # 1. 提取所有有效数据的物理值
+        valid_data = [h for h in self.detailed_logs if h.get('valid', False)]
+        
+        if len(valid_data) == 0:
+            return []
+        
+        # 使用Numpy向量化计算min/max
+        times = np.array([d['objectives']['time'] for d in valid_data])
+        temps = np.array([d['objectives']['temp'] for d in valid_data])
+        agings_log = np.array([d['objectives']['aging'] for d in valid_data])
+        
+        current_bounds = {
+            'time': {'min': times.min(), 'max': times.max()},
+            'temp': {'min': temps.min(), 'max': temps.max()},
+            'aging': {'min': agings_log.min(), 'max': agings_log.max()}
+        }
+        
+        # 2. 单调扩展：与物理边界和运行时边界取并集
+        for key in ['time', 'temp', 'aging']:
+            # 边界只能扩展，不能收缩
+            self.running_bounds[key]['min'] = min(
+                self.running_bounds[key]['min'],
+                current_bounds[key]['min'],
+                self.physical_bounds[key]['min']
+            )
+            self.running_bounds[key]['max'] = max(
+                self.running_bounds[key]['max'],
+                current_bounds[key]['max'],
+                self.physical_bounds[key]['max']
+            )
+        
+        # 防止除零：确保最小范围
+        min_ranges = {'time': 5.0, 'temp': 1.0, 'aging': 0.1}
+        for key, min_range in min_ranges.items():
+            current_range = self.running_bounds[key]['max'] - self.running_bounds[key]['min']
+            if current_range < min_range:
+                midpoint = (self.running_bounds[key]['max'] + self.running_bounds[key]['min']) / 2
+                self.running_bounds[key]['min'] = midpoint - min_range / 2
+                self.running_bounds[key]['max'] = midpoint + min_range / 2
+        
+        # 3. 向量化归一化所有数据
+        normalized_history = []
+        
+        for log in self.detailed_logs:
+            obj = log['objectives']
+            is_valid = log.get('valid', False)
+            
+            # ✅ 归一化（使用固定的physical_bounds，确保一致性）
+            normalized = {}
+            for key in ['time', 'temp', 'aging']:
+                denominator = self.physical_bounds[key]['max'] - self.physical_bounds[key]['min']
+                val = (obj[key] - self.physical_bounds[key]['min']) / denominator
+                
+                # ✅ 只对 valid 点 clip 到 [0,1]；invalid 点直接按最差处理
+                if is_valid:
+                    normalized[key] = float(np.clip(val, 0.0, 1.0))
+                else:
+                    normalized[key] = 1.0
+            
+            # 切比雪夫标量化
+            weighted_deviations = [
+                self.weights[key] * normalized[key]
+                for key in ['time', 'temp', 'aging']
+            ]
+            max_weighted = max(weighted_deviations)
+            sum_weighted = sum(weighted_deviations)
+            scalarized = max_weighted + 0.05 * sum_weighted
+            
+            # 添加软约束惩罚
+            constraint_result = self.soft_constraints.compute_total_penalty(obj)
+            scalarized += constraint_result['total_penalty']
+            
+            if constraint_result['is_severe']:
+                scalarized += 0.2  # 严重违规额外惩罚
+            
+            # ✅ 无效点额外惩罚（让 f 明显 > 2）
+            if not is_valid:
+                scalarized += self.invalid_penalty
+            
+            # ✅ 构建规范化记录（保留原 log 的所有字段，包括 gradients）
+            new_log = dict(log)
+            new_log['normalized'] = normalized
+            new_log['scalarized'] = scalarized
+            
+            normalized_history.append(new_log)
+        
+        if self.verbose and len(normalized_history) > 0:
+            print(f"\n[全局归一化] 已重算 {len(normalized_history)} 条历史记录")
+            print(f"✅ 使用固定物理边界:")
+            for key in ['time', 'temp', 'aging']:
+                print(f"  {key}: [{self.physical_bounds[key]['min']:.2f}, {self.physical_bounds[key]['max']:.2f}]")
+        
+        return normalized_history
+    
+    # ============================================================
     # 原有方法（保持不变）
     # ============================================================
     
@@ -426,56 +592,105 @@ class MultiObjectiveEvaluator:
         # 1. 运行充电仿真
         sim_result = self._run_charging_simulation(current1, charging_number, current2)
         
-        # 2. 更新历史
+        # 2. ✅ 对老化应用对数变换
+        aging_raw = sim_result['aging']  # 原始百分比值
+        aging_log = self._apply_log_transform(aging_raw)
+        
+        # 3. ✅ 存储原始数据到 raw_history
+        objectives_with_log = {
+            'time': sim_result['time'],
+            'temp': sim_result['temp'],
+            'aging': aging_log  # ✅ 存储对数变换值
+        }
+        
+        raw_record = {
+            'eval_id': self.eval_count,
+            'params': {
+                'current1': current1,
+                'charging_number': charging_number,
+                'current2': current2
+            },
+            'objectives': objectives_with_log,
+            'aging_raw': aging_raw,  # 同时保留原始值用于分析
+            'valid': sim_result['valid'],
+            'violations': sim_result.get('constraint_violation', 0),
+            'termination': sim_result.get('termination', 'unknown')
+        }
+        
+        self.raw_history.append(raw_record)
+        
+        # 4. 更新旧历史（保留兼容性）
         self.history['time'].append(sim_result['time'])
         self.history['temp'].append(sim_result['temp'])
-        self.history['aging'].append(sim_result['aging'])
+        self.history['aging'].append(aging_log)  # 存储对数值
         self.history['valid'].append(sim_result['valid'])
         
         self.eval_count += 1
         
-        # 3. 每N次更新分位数边界
-        if self.eval_count % self.update_interval == 0 and self.eval_count >= 10:
-            self._update_bounds()
+        # 5. ✅ 移除旧的边界更新逻辑（使用全局归一化替代）
+        # if self.eval_count % self.update_interval == 0 and self.eval_count >= 10:
+        #     self._update_bounds()
         
-        # 4. 归一化
-        objectives_only = {
-            'time': sim_result['time'],
-            'temp': sim_result['temp'],
-            'aging': sim_result['aging']
-        }
-        normalized = self._normalize(objectives_only)
+        # ✅ 6. 临时归一化（统一使用固定的物理边界）
+        normalized = {}
+        for key in ['time', 'temp', 'aging']:
+            denominator = self.physical_bounds[key]['max'] - self.physical_bounds[key]['min']
+            if denominator > 0:
+                normalized[key] = (objectives_with_log[key] - self.physical_bounds[key]['min']) / denominator
+            else:
+                normalized[key] = 0.5
+            
+            # ✅ 只对 valid 点 clip 到 [0,1]；invalid 点直接按最差处理
+            if sim_result['valid']:
+                normalized[key] = float(np.clip(normalized[key], 0.0, 1.0))
+            else:
+                normalized[key] = 1.0
         
-        # 5. 切比雪夫标量化
-        scalarized = self._chebyshev_scalarize(normalized)
+        # 7. 切比雪夫标量化
+        weighted_deviations = [
+            self.weights[key] * normalized[key]
+            for key in ['time', 'temp', 'aging']
+        ]
+        base_scalarized = max(weighted_deviations) + 0.05 * sum(weighted_deviations)
+        scalarized = base_scalarized
         
-        # 6. 软约束惩罚机制 (指数/平方)
-        constraint_result = self.soft_constraints.compute_total_penalty(objectives_only)
+        # 8. 软约束惩罚机制 (指数/平方)
+        constraint_result = self.soft_constraints.compute_total_penalty(objectives_with_log)
         soft_penalty = constraint_result['total_penalty']
         scalarized += soft_penalty
         
         if constraint_result['is_severe']:
-            scalarized += 0.1
+            scalarized += 0.2  # 严重违规额外惩罚
         
-        # 6.5 计算梯度
+        # ✅ 无效点额外惩罚
+        if not sim_result['valid']:
+            scalarized += self.invalid_penalty
+        
+        # ✅ 详细调试输出
+        if self.verbose and self.eval_count % 1 == 0:  # 每次都输出
+            print(f"\n  [归一化] time={normalized['time']:.4f}, temp={normalized['temp']:.4f}, aging={normalized['aging']:.4f}")
+            print(f"  [标量化] 基础={base_scalarized:.4f}, 软约束={soft_penalty:.4f}, 无效惩罚={self.invalid_penalty if not sim_result['valid'] else 0:.4f}")
+            print(f"  [最终] f={scalarized:.4f}, valid={sim_result['valid']}")
+        
+        # 9. 计算梯度（可选）
         gradients = None
-        if self.eval_count % 3 == 0:
+        if (self.spm_for_gradients is not None) and (self.eval_count % self.gradient_compute_interval == 0):
             try:
                 grad_result = self.spm_for_gradients.run_two_stage_charging(
                     current1=current1, charging_number=int(charging_number), 
                     current2=current2, return_sensitivities=True
                 )
-                if grad_result['valid'] and 'sensitivities' in grad_result:
+                if grad_result.get('valid', False) and 'sensitivities' in grad_result:
                     gradients = grad_result['sensitivities']
-            except:
+            except Exception:
                 gradients = None
 
-
-        # 7. 记录详细日志
+        # 10. 记录详细日志
         log_entry = {
             'eval_id': self.eval_count,
             'params': {'current1': current1, 'charging_number': charging_number, 'current2': current2},
-            'objectives': objectives_only,
+            'objectives': objectives_with_log,
+            'aging_raw': aging_raw,
             'normalized': normalized,
             'scalarized': scalarized,
             'valid': sim_result['valid'],
@@ -485,11 +700,11 @@ class MultiObjectiveEvaluator:
         }
         self.detailed_logs.append(log_entry)
         
-        # 8. 可选：打印进度
+        # 11. 可选：打印进度
         if self.verbose and self.eval_count % 5 == 0:
             time_minutes = sim_result['time'] * 90 / 60
             
-            constraint_info = self.soft_constraints.compute_total_penalty(objectives_only)
+            constraint_info = self.soft_constraints.compute_total_penalty(objectives_with_log)
             temp_status = constraint_info['statuses']['temp']
             temp_penalty = constraint_info['penalties']['temp']
             
@@ -503,7 +718,7 @@ class MultiObjectiveEvaluator:
             print(f"[Eval {self.eval_count}] "
                   f"t={sim_result['time']:.0f}步({time_minutes:.1f}min), "
                   f"T={sim_result['temp']:.2f}K{status_icon}, "
-                  f"A={sim_result['aging']:.4f}%, "
+                  f"A_raw={aging_raw:.4f}%, A_log={aging_log:.2f}, "
                   f"penalty={temp_penalty:.4f}, "
                   f"f={scalarized:.4f}")
         
@@ -696,9 +911,17 @@ class MultiObjectiveEvaluator:
         
         return stats
     
-    def export_database(self) -> List[Dict]:
-        """导出完整数据库"""
-        return self.detailed_logs
+    def export_database(self, normalized: bool = True) -> List[Dict]:
+        """
+        导出完整数据库
+        
+        参数：
+            normalized: 是否返回全局归一化后的历史（默认True）
+        
+        返回：
+            归一化历史（包含统一尺度的 scalarized 值）或原始 detailed_logs
+        """
+        return self.get_normalized_history() if normalized else self.detailed_logs
     
     def get_pareto_front(self) -> List[Dict]:
         """提取帕累托最优解"""

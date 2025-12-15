@@ -787,25 +787,32 @@ class LLMEnhancedBO:
     
     async def fit_surrogate_async(self, history: List[Dict]) -> GaussianProcessRegressor:
         """
-        拟合LLM增强的GP代理模型(异步版本)
+        拟合LLM增强的GP代理模型(异步版本) - v2.0
         
         流程:
-        1. 估计耦合矩阵(每N次迭代)
-        2. LLM解释和验证(可选)
-        3. 构建复合核函数
-        4. 拟合GP
+        1. ✅ 获取全局归一化历史（统一边界）
+        2. 估计耦合矩阵(每N次迭代)
+        3. LLM解释和验证(可选)
+        4. 构建复合核函数
+        5. 拟合GP
         """
         self.iteration += 1
         
+        # ✅ 核心改进：使用全局归一化历史替代原始history
+        normalized_history = self.evaluator.get_normalized_history()
+        
+        if len(normalized_history) == 0:
+            normalized_history = history  # 回退到原始历史
+        
         # 更新耦合矩阵
         if self.iteration % self.update_coupling_every == 1 or self.coupling_matrix is None:
-            self.coupling_matrix = self.coupling_estimator.estimate_from_history(history)
+            self.coupling_matrix = self.coupling_estimator.estimate_from_history(normalized_history)
             
             # LLM解释(可选)
-            if self.enable_llm_advisor and len(history) >= 5:
+            if self.enable_llm_advisor and len(normalized_history) >= 5:
                 # 计算当前最佳点的梯度
                 best_record = min(
-                    [r for r in history if r['valid']],
+                    [r for r in normalized_history if r['valid']],
                     key=lambda x: x['scalarized']
                 )
                 best_params = best_record['params']
@@ -840,11 +847,12 @@ class LLMEnhancedBO:
         gamma = self.gamma_scheduler.gamma
         self.composite_kernel = base_kernel + gamma * coupling_kernel
         
-        # 准备训练数据
-        if (len(history) > 0 and 
-            isinstance(history[0], dict) and 
-            'data_columns' in history[0]):
-            data_cols = history[0]['data_columns']
+        # ✅ 准备训练数据（使用归一化历史）
+        if (len(normalized_history) > 0 and 
+            isinstance(normalized_history[0], dict) and 
+            'data_columns' in normalized_history[0]):
+            # 快速路径：columnar数据（Database v3.0）
+            data_cols = normalized_history[0]['data_columns']
             X_raw = np.array(data_cols['X'])
             y = np.array(data_cols['scalarized_Y'])
             mask_valid = np.array(data_cols['mask_valid'])
@@ -852,9 +860,10 @@ class LLMEnhancedBO:
             X_raw = X_raw[mask_valid]
             y = y[mask_valid]
         else:
+            # 标准路径：从归一化历史提取
             X_raw = []
             y = []
-            for record in history:
+            for record in normalized_history:
                 if record['valid']:
                     p = record['params']
                     X_raw.append([p['current1'], p['charging_number'], p['current2']])
