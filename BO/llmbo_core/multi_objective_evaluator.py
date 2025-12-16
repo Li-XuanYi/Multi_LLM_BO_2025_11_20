@@ -160,8 +160,8 @@ class MultiObjectiveEvaluator:
         self, 
         weights: Optional[Dict[str, float]] = None,
         update_interval: int = 10,
-        temp_max: float = 309.0,
-        max_steps: int = 300,
+        temp_max: float = 318.0,
+        max_steps: int = 120,
         verbose: bool = True
     ):
         """
