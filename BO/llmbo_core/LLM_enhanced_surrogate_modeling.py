@@ -76,7 +76,7 @@ class CouplingMatrixEstimator:
         self,
         history: List[Dict],
         use_scalarized: bool = True,
-        use_hybrid: bool = True  # ✨ 新增: 是否使用混合估计
+        use_hybrid: bool = True  # ✨ 新增: 是否使用混合方法
     ) -> np.ndarray:
         """
         从历史评估数据估计耦合矩阵
@@ -90,7 +90,34 @@ class CouplingMatrixEstimator:
             W: (3, 3) 耦合权重矩阵
         """
         
-        # ✨ 优先使用混合方法(如果启用且有LLM API密钥)
+        # ✅ 修复2.1: 添加诊断和策略选择
+        diagnosis = self._diagnose_gradient_data(history)
+        
+        if self.verbose:
+            print("\n" + "="*70)
+            print("[Coupling Matrix Estimator] 诊断报告")
+            print("="*70)
+            print(f"  历史记录总数: {diagnosis['total_records']}")
+            print(f"  有效记录: {diagnosis['valid_records']}")
+            print(f"  包含梯度的记录: {diagnosis['gradient_records']}")
+            print(f"  梯度覆盖率: {diagnosis['gradient_coverage']:.1f}%")
+            print(f"  梯度数据充足: {'✅ 是' if diagnosis['sufficient_gradients'] else '❌ 否'}")
+            print(f"  选择策略: {diagnosis['strategy']}")
+            
+            if not diagnosis['sufficient_gradients']:
+                print(f"\n  ⚠️  梯度数据不足，回退到默认耦合矩阵")
+                print(f"  建议: gradient_compute_interval = 1")
+            else:
+                print(f"  ✅ 梯度数据充足 ({diagnosis['gradient_records']} ≥ 3)")
+                print(f"  ✅ 使用 DATA-DRIVEN 耦合矩阵 ✨")
+            print("="*70)
+        
+        # 根据诊断结果选择策略
+        if not diagnosis['sufficient_gradients']:
+            # 回退到默认耦合矩阵
+            return self._get_default_coupling_matrix()
+        
+        # ✨ 如果梯度充足，优先使用混合方法(如果启用且有LLM API密钥)
         if use_hybrid and hasattr(self, 'llm_api_key') and self.llm_api_key:
             try:
                 if self.verbose:
@@ -931,6 +958,82 @@ class LLMEnhancedBO:
     def get_gamma_history(self) -> Tuple[List[float], List[float]]:
         """返回γ的历史记录"""
         return self.gamma_scheduler.get_history()
+
+
+# ============================================================
+# 修复2: 耦合矩阵估计器诊断方法
+# ============================================================
+
+# 将以下方法添加到 CouplingMatrixEstimator 类中
+# （由于类定义在前面，这里单独定义后需要手动添加到类中）
+
+def _diagnose_gradient_data_func(self, history: List[Dict]) -> Dict:
+    """
+    ✅ 修复2.2: 诊断梯度数据质量
+    
+    返回诊断报告，包括:
+    - total_records: 总记录数
+    - valid_records: 有效记录数
+    - gradient_records: 包含梯度的记录数
+    - gradient_coverage: 梯度覆盖率 (%)
+    - sufficient_gradients: 是否有足够的梯度数据
+    - strategy: 推荐策略 ('DATA_DRIVEN', 'DEFAULT', 'HYBRID')
+    """
+    total_records = len(history)
+    valid_records = sum(1 for h in history if h.get('valid', False))
+    
+    # 统计包含梯度的记录数
+    gradient_records = 0
+    for h in history:
+        if h.get('valid', False) and h.get('gradients') is not None:
+            gradient_records += 1
+    
+    gradient_coverage = (gradient_records / valid_records * 100) if valid_records > 0 else 0
+    sufficient_gradients = gradient_records >= 3  # 至少需要3个点
+    
+    # 决定策略
+    if sufficient_gradients:
+        strategy = 'DATA_DRIVEN'
+    else:
+        strategy = 'DEFAULT'
+    
+    return {
+        'total_records': total_records,
+        'valid_records': valid_records,
+        'gradient_records': gradient_records,
+        'gradient_coverage': gradient_coverage,
+        'sufficient_gradients': sufficient_gradients,
+        'strategy': strategy
+    }
+
+def _get_default_coupling_matrix_func(self, verbose: bool = True) -> np.ndarray:
+    """
+    ✅ 修复2.3: 返回默认的耦合矩阵
+    
+    基于电化学先验知识的合理默认值：
+    - Current1-ChargingNum: 强耦合 (0.8)
+    - Current1-Current2: 中等耦合 (0.5)
+    - ChargingNum-Current2: 弱耦合 (0.3)
+    """
+    W = np.array([
+        [1.0, 0.8, 0.5],  # Current1 与其他参数的耦合
+        [0.8, 1.0, 0.3],  # ChargingNumber 与其他参数的耦合
+        [0.5, 0.3, 1.0]   # Current2 与其他参数的耦合
+    ])
+    
+    if verbose:
+        print("\n[Default Coupling Matrix] 使用先验知识")
+        print("  W (default) =")
+        print("       I1      t1      I2")
+        for i, row_label in enumerate(['I1', 't1', 'I2']):
+            row_str = f"  {row_label}  " + "  ".join([f"{W[i,j]:.3f}" for j in range(3)])
+            print(row_str)
+    
+    return W
+
+# 添加到 CouplingMatrixEstimator 类
+CouplingMatrixEstimator._diagnose_gradient_data = _diagnose_gradient_data_func
+CouplingMatrixEstimator._get_default_coupling_matrix = _get_default_coupling_matrix_func
 
 
 # ============================================================

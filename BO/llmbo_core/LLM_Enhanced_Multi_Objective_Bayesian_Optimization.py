@@ -371,9 +371,14 @@ class LLMEnhancedMultiObjectiveBO:
                 # - 结束: decay=0, weights^0 = 1 (纯EI)
                 weighted_ei = ei * (weights ** decay)
                 
-                # if self.verbose and total_evals % 10 == 0:  # 每10次迭代打印一次
-                #     print(f"  [LLM衰减] 进度={iter_ratio:.1%}, decay={decay:.2f}, "
-                #           f"权重范围=[{weights.min():.3f}, {weights.max():.3f}]")
+                # ✅ 修复3: 启用详细调试输出
+                if self.verbose and total_evals % 5 == 0:  # 每5次迭代打印一次
+                    print(f"\n[LLM-Enhanced EI] 迭代 {total_evals}")
+                    print(f"  标准 EI:        {ei[0]:.6f}")
+                    print(f"  LLM 权重:       {weights[0]:.6f}")
+                    print(f"  迭代进度:       {iter_ratio:.2%}")
+                    print(f"  W_LLM 衰减:     {decay:.6f}")
+                    print(f"  最终 α^LLM_EI:  {weighted_ei[0]:.6f}")
                 
                 return weighted_ei
             

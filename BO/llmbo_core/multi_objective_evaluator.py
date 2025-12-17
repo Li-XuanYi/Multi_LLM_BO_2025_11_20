@@ -232,7 +232,7 @@ class MultiObjectiveEvaluator:
         
         # ✅ 初始化梯度计算器（避免 verbose=False 时未定义）
         self.spm_for_gradients = None
-        self.gradient_compute_interval = 3  # 每3次计算一次梯度
+        self.gradient_compute_interval = 1  # ✅ 修复1: 每次都计算梯度（提升耦合矩阵质量）
         self.invalid_penalty = 0.5  # ✅ 无效点的额外惩罚（降低以避免f值过大）
         
         # 动态分位数边界（保留兼容性）
